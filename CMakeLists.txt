@@ -19,6 +19,7 @@ include_directories(${SRC_DIR})
 # Define source files explicitly
 set(SOURCES
     ${SRC_DIR}/main.cpp
+    ${SRC_DIR}/constants.cpp
     ${SRC_DIR}/vlasov_poisson.cu
     ${SRC_DIR}/IO.cpp
 )
