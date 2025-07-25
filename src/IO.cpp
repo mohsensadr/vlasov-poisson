@@ -1,6 +1,10 @@
 // IO.cpp
 #include <filesystem>
 #include <iostream>
+#include <fstream>   // REQUIRED for std::ofstream
+#include <cstdio>    // for snprintf
+
+#include "vlasov_constants.hpp"
 
 namespace fs = std::filesystem;
 

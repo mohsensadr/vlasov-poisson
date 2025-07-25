@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IO.h"
 #include <cstdio>   // for snprintf
 
 // Constants must be defined somewhere

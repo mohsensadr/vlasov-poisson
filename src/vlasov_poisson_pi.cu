@@ -4,13 +4,10 @@
 #include <cstdlib>
 #include <cuda_runtime.h>
 
-#define N_PARTICLES 100000
-#define N_GRID_X 128
-#define N_GRID_Y 128
-#define DT       0.05f
-#define Lx       1.0f
-#define Ly       1.0f
-#define Q_OVER_M 1.0f
+#include "vlasov_constants.hpp"
+///#include "vlasov_kernels.cuh"
+#include "IO.h"
+
 
 __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
