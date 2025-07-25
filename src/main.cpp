@@ -5,8 +5,7 @@
 #include <cuda_runtime.h>
 #include <filesystem>  // C++17
 #include <cstdio>      // for snprintf
-#include "IO.h"
-#include "vlasov_poisson_pi.cuh"
+#include "vlasov_poisson.cuh"
 
 
 

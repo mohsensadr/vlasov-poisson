@@ -3,10 +3,6 @@
 #include "IO.h"
 #include <cstdio>   // for snprintf
 
-// Constants must be defined somewhere
-extern const int N_GRID_X;
-extern const int N_GRID_Y;
-
 /**
  * @brief Write the density grid to a CSV file.
  * 

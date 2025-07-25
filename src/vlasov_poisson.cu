@@ -4,8 +4,7 @@
 #include <cstdlib>
 #include <cuda_runtime.h>
 
-#include "vlasov_constants.hpp"
-///#include "vlasov_kernels.cuh"
+#include "constants.hpp"
 #include "IO.h"
 
 
