@@ -1,4 +1,3 @@
-%%writefile vlasov_poisson_pic.cu
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -110,19 +109,9 @@ void solve_poisson(float *rho, float *Ex, float *Ey) {
     }
 }
 
-void write_density_to_csv(const char *filename, float *rho) {
-    std::ofstream out(filename);
-    for (int j = 0; j < N_GRID_Y; ++j) {
-        for (int i = 0; i < N_GRID_X; ++i) {
-            out << rho[i + j * N_GRID_X];
-            if (i < N_GRID_X - 1) out << ",";
-        }
-        out << "\n";
-    }
-    out.close();
-}
 
-int main() {
+
+void run() {
     float *x = new float[N_PARTICLES];
     float *y = new float[N_PARTICLES];
     float *vx = new float[N_PARTICLES];
@@ -189,12 +178,8 @@ int main() {
         push_particles_2d<<<(N_PARTICLES + 255) / 256, 256>>>(d_x, d_y, d_vx, d_vy, d_Ex, d_Ey, N_PARTICLES);
         cudaDeviceSynchronize();
 
-        // Save rho every 10 steps
         if (step % 10 == 0) {
-            char filename[64];
-            snprintf(filename, sizeof(filename), "rho_step_%03d.csv", step);
-            write_density_to_csv(filename, rho_host);
-            std::cout << "Saved: " << filename << "\n";
+            write_output(step, rho_host);
         }
 
         delete[] rho_host;
@@ -207,6 +192,5 @@ int main() {
     delete[] x; delete[] y; delete[] vx; delete[] vy;
 
     std::cout << "Done. Charge density saved to rho.csv\n";
-    return 0;
 }
 
