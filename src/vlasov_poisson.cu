@@ -116,9 +116,11 @@ void solve_poisson(float *rho, float *Ex, float *Ey,
 void run(int N_GRID_X, int N_GRID_Y,
             int N_PARTICLES,
             float DT,
+            int NSteps,
             float Lx,
             float Ly,
-            float Q_OVER_M
+            float Q_OVER_M,
+            int threadsPerBlock
             ) {
     float *x = new float[N_PARTICLES];
     float *y = new float[N_PARTICLES];
@@ -166,10 +168,12 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaMemcpy(d_vx, vx, sizeof(float) * N_PARTICLES, cudaMemcpyHostToDevice);
     cudaMemcpy(d_vy, vy, sizeof(float) * N_PARTICLES, cudaMemcpyHostToDevice);
 
-    for (int step = 0; step < 200; ++step) {
+    int blocksPerGrid = (N_PARTICLES + threadsPerBlock - 1) / threadsPerBlock;
+
+    for (int step = 0; step < NSteps; ++step) {
         cudaMemset(d_rho, 0, sizeof(float) * grid_size);
 
-        deposit_charge_2d<<<(N_PARTICLES + 255) / 256, 256>>>(d_x, d_y, d_rho, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly);
+        deposit_charge_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_rho, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly);
         cudaDeviceSynchronize();
 
         float *rho_host = new float[grid_size];
@@ -183,7 +187,7 @@ void run(int N_GRID_X, int N_GRID_Y,
         cudaMemcpy(d_Ex, Ex_host, sizeof(float) * grid_size, cudaMemcpyHostToDevice);
         cudaMemcpy(d_Ey, Ey_host, sizeof(float) * grid_size, cudaMemcpyHostToDevice);
 
-        push_particles_2d<<<(N_PARTICLES + 255) / 256, 256>>>(d_x, d_y, d_vx, d_vy, d_Ex, d_Ey, N_PARTICLES, N_GRID_X, N_GRID_Y,
+        push_particles_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_vx, d_vy, d_Ex, d_Ey, N_PARTICLES, N_GRID_X, N_GRID_Y,
             Lx, Ly, DT, Q_OVER_M);
         cudaDeviceSynchronize();
 
