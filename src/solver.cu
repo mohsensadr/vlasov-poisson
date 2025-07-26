@@ -2,6 +2,34 @@
 #include <math.h>
 #include <solver.cuh>
 
+__global__ void apply_neumann_bc_kernel(float *phi, int N_GRID_X, int N_GRID_Y) {
+    int idx;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Bottom and top boundaries (j = 0 and j = N_GRID_Y-1)
+    if (i < N_GRID_X) {
+        // Bottom: phi[i, 0] = phi[i, 1]
+        idx = 0 * N_GRID_X + i;
+        phi[idx] = phi[idx + N_GRID_X];
+
+        // Top: phi[i, N-1] = phi[i, N-2]
+        idx = (N_GRID_Y - 1) * N_GRID_X + i;
+        phi[idx] = phi[idx - N_GRID_X];
+    }
+
+    // Left and right boundaries (i = 0 and i = N_GRID_X-1)
+    if (i < N_GRID_Y) {
+        // Left: phi[0, j] = phi[1, j]
+        idx = i * N_GRID_X + 0;
+        phi[idx] = phi[idx + 1];
+
+        // Right: phi[N-1, j] = phi[N-2, j]
+        idx = i * N_GRID_X + (N_GRID_X - 1);
+        phi[idx] = phi[idx - 1];
+    }
+}
+
 __global__ void jacobi_iteration_kernel(const float *rho, float *phi_new, const float *phi_old,
                                         int N_GRID_X, int N_GRID_Y, float dx, float dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -47,6 +75,8 @@ void solve_poisson_jacobi(float *rho_d, float *Ex_d, float *Ey_d,
     for (int iter = 0; iter < MAX_ITERS; ++iter) {
         jacobi_iteration_kernel<<<gridDim, blockDim>>>(rho_d, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         
+        apply_neumann_bc_kernel<<<gridDim, blockDim>>>(phi_new, N_GRID_X, N_GRID_Y);
+
         float* tmp = phi_old;
         phi_old = phi_new;
         phi_new = tmp;
