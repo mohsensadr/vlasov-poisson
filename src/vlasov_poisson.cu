@@ -6,6 +6,7 @@
 
 #include "constants.hpp"
 #include "solver.cuh"
+#include "initialization.cuh"
 #include "IO.h"
 
 __device__ int periodic_index(int i, int N) {
@@ -82,36 +83,10 @@ void run(int N_GRID_X, int N_GRID_Y,
             float Q_OVER_M,
             int threadsPerBlock
             ) {
+
     float dx = Lx/N_GRID_X;
     float dy = Ly/N_GRID_Y;
-    float *x = new float[N_PARTICLES];
-    float *y = new float[N_PARTICLES];
-    float *vx = new float[N_PARTICLES];
-    float *vy = new float[N_PARTICLES];
-
-    for (int i = 0; i < N_PARTICLES; ++i) {
-        float rx = static_cast<float>(rand()) / RAND_MAX;
-        float ry = static_cast<float>(rand()) / RAND_MAX;
-
-        x[i] = Lx * rx;
-        y[i] = Ly * ry;
-
-        // Maxwellian in vx, vy (Box-Muller)
-        float u1 = static_cast<float>(rand()) / RAND_MAX;
-        float u2 = static_cast<float>(rand()) / RAND_MAX;
-        float u3 = static_cast<float>(rand()) / RAND_MAX;
-        float u4 = static_cast<float>(rand()) / RAND_MAX;
-
-        vx[i] = sqrtf(-2 * log(u1)) * cosf(2 * M_PI * u2);
-        vy[i] = sqrtf(-2 * log(u3)) * cosf(2 * M_PI * u4);
-
-        // Landau perturbation in density
-        float alpha = 0.01f;
-        vx[i] += alpha * cosf(2 * M_PI * x[i] / Lx);
-        vy[i] += alpha * cosf(2 * M_PI * y[i] / Ly);
-    }
-
-
+    int grid_size = N_GRID_X*N_GRID_Y;
     float *d_x, *d_y, *d_vx, *d_vy;
     float *d_rho, *d_Ex, *d_Ey;
 
@@ -120,17 +95,17 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaMalloc(&d_vx, sizeof(float) * N_PARTICLES);
     cudaMalloc(&d_vy, sizeof(float) * N_PARTICLES);
 
-    int grid_size = N_GRID_X * N_GRID_Y;
-    cudaMalloc(&d_rho, sizeof(float) * grid_size);
-    cudaMalloc(&d_Ex, sizeof(float) * grid_size);
-    cudaMalloc(&d_Ey, sizeof(float) * grid_size);
-
-    cudaMemcpy(d_x, x, sizeof(float) * N_PARTICLES, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_y, y, sizeof(float) * N_PARTICLES, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_vx, vx, sizeof(float) * N_PARTICLES, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_vy, vy, sizeof(float) * N_PARTICLES, cudaMemcpyHostToDevice);
+    cudaMalloc(&d_rho, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_Ex, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_Ey, sizeof(float) * N_GRID_X * N_GRID_Y);
 
     int blocksPerGrid = (N_PARTICLES + threadsPerBlock - 1) / threadsPerBlock;
+
+    initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
+        d_x, d_y, d_vx, d_vy, Lx, Ly, N_PARTICLES
+    );
+
+    cudaDeviceSynchronize();
 
     for (int step = 0; step < NSteps; ++step) {
         cudaMemset(d_rho, 0, sizeof(float) * grid_size);
@@ -154,8 +129,7 @@ void run(int N_GRID_X, int N_GRID_Y,
 
     cudaFree(d_x); cudaFree(d_y); cudaFree(d_vx); cudaFree(d_vy);
     cudaFree(d_rho); cudaFree(d_Ex); cudaFree(d_Ey);
-    delete[] x; delete[] y; delete[] vx; delete[] vy;
 
-    std::cout << "Done. Charge density saved to rho.csv\n";
+    std::cout << "Done.\n";
 }
 
