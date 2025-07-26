@@ -20,6 +20,7 @@ include_directories(${SRC_DIR})
 set(SOURCES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/constants.cpp
+    ${SRC_DIR}/solver.cu
     ${SRC_DIR}/vlasov_poisson.cu
     ${SRC_DIR}/IO.cpp
 )

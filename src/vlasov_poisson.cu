@@ -5,8 +5,8 @@
 #include <cuda_runtime.h>
 
 #include "constants.hpp"
+#include "solver.cuh"
 #include "IO.h"
-
 
 __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -24,36 +24,6 @@ __global__ void deposit_charge_2d(float *x, float *y, float *rho, int n_particle
         atomicAdd(&rho[idx], 1.0f);  // ensure atomic
     }
 }
-
-/*
-__global__ void deposit_charge_2d(float *x, float *y, float *rho, int n_particles) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= n_particles) return;
-
-    float xi = x[i] / Lx * N_GRID_X;
-    float yi = y[i] / Ly * N_GRID_Y;
-
-    int ix = floorf(xi);
-    int iy = floorf(yi);
-    float dx = xi - ix;
-    float dy = yi - iy;
-
-    float w00 = (1 - dx) * (1 - dy);
-    float w01 = (1 - dx) * dy;
-    float w10 = dx * (1 - dy);
-    float w11 = dx * dy;
-
-    int i00 = periodic_index(ix, N_GRID_X) + periodic_index(iy, N_GRID_Y) * N_GRID_X;
-    int i01 = periodic_index(ix, N_GRID_X) + periodic_index(iy + 1, N_GRID_Y) * N_GRID_X;
-    int i10 = periodic_index(ix + 1, N_GRID_X) + periodic_index(iy, N_GRID_Y) * N_GRID_X;
-    int i11 = periodic_index(ix + 1, N_GRID_X) + periodic_index(iy + 1, N_GRID_Y) * N_GRID_X;
-
-    atomicAdd(&rho[i00], w00);
-    atomicAdd(&rho[i01], w01);
-    atomicAdd(&rho[i10], w10);
-    atomicAdd(&rho[i11], w11);
-}
-*/
 
 __global__ void push_particles_2d(float *x, float *y, float *vx, float *vy,
                                   float *Ex, float *Ey, int n_particles,
@@ -103,16 +73,6 @@ __global__ void push_particles_2d(float *x, float *y, float *vx, float *vy,
     if (y[i] >= Ly) y[i] -= Ly;
 }
 
-// Placeholder Poisson solver: sets E = 0 for demo (replace with real solver)
-void solve_poisson(float *rho, float *Ex, float *Ey,
-                  int N_GRID_X, int N_GRID_Y) {
-    int size = N_GRID_X * N_GRID_Y;
-    for (int i = 0; i < size; ++i) {
-        Ex[i] = 0.0f;
-        Ey[i] = 0.0f;
-    }
-}
-
 void run(int N_GRID_X, int N_GRID_Y,
             int N_PARTICLES,
             float DT,
@@ -122,6 +82,8 @@ void run(int N_GRID_X, int N_GRID_Y,
             float Q_OVER_M,
             int threadsPerBlock
             ) {
+    float dx = Lx/N_GRID_X;
+    float dy = Ly/N_GRID_Y;
     float *x = new float[N_PARTICLES];
     float *y = new float[N_PARTICLES];
     float *vx = new float[N_PARTICLES];
@@ -176,28 +138,18 @@ void run(int N_GRID_X, int N_GRID_Y,
         deposit_charge_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_rho, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly);
         cudaDeviceSynchronize();
 
-        float *rho_host = new float[grid_size];
-        float *Ex_host = new float[grid_size];
-        float *Ey_host = new float[grid_size];
-
-        cudaMemcpy(rho_host, d_rho, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-
-        solve_poisson(rho_host, Ex_host, Ey_host, N_GRID_X, N_GRID_Y); // (still a placeholder)
-
-        cudaMemcpy(d_Ex, Ex_host, sizeof(float) * grid_size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_Ey, Ey_host, sizeof(float) * grid_size, cudaMemcpyHostToDevice);
+        solve_poisson_jacobi(d_rho, d_Ex, d_Ey, N_GRID_X, N_GRID_Y, dx, dy, threadsPerBlock);
 
         push_particles_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_vx, d_vy, d_Ex, d_Ey, N_PARTICLES, N_GRID_X, N_GRID_Y,
             Lx, Ly, DT, Q_OVER_M);
         cudaDeviceSynchronize();
 
         if (step % 10 == 0) {
+            float *rho_host = new float[grid_size];
+            cudaMemcpy(rho_host, d_rho, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
             write_output(step, rho_host);
+            delete[] rho_host;
         }
-
-        delete[] rho_host;
-        delete[] Ex_host;
-        delete[] Ey_host;
     }
 
     cudaFree(d_x); cudaFree(d_y); cudaFree(d_vx); cudaFree(d_vy);
