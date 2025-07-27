@@ -1,4 +1,4 @@
-// vlasov_poisson_pi.cuh
+// vlasov_poisson.cuh
 
 #pragma once
 

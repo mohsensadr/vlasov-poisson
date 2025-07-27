@@ -8,23 +8,13 @@
 #include "solver.cuh"
 #include "initialization.cuh"
 #include "IO.h"
+#include "moments.cuh"
 
 __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
 }
 
-__global__ void deposit_charge_2d(float *x, float *y, float *rho, int n_particles,
-            int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
-    ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n_particles) {
-        int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
-        int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
-        int idx = ix + iy * N_GRID_X;
-        atomicAdd(&rho[idx], 1.0f);  // ensure atomic
-    }
-}
+
 
 __global__ void push_particles_2d(float *x, float *y, float *vx, float *vy,
                                   float *Ex, float *Ey, int n_particles,
@@ -88,14 +78,17 @@ void run(int N_GRID_X, int N_GRID_Y,
     float dy = Ly/N_GRID_Y;
     int grid_size = N_GRID_X*N_GRID_Y;
     float *d_x, *d_y, *d_vx, *d_vy;
-    float *d_rho, *d_Ex, *d_Ey;
+    float *d_N, *d_Ux, *d_Uy, *d_T, *d_Ex, *d_Ey;
 
     cudaMalloc(&d_x, sizeof(float) * N_PARTICLES);
     cudaMalloc(&d_y, sizeof(float) * N_PARTICLES);
     cudaMalloc(&d_vx, sizeof(float) * N_PARTICLES);
     cudaMalloc(&d_vy, sizeof(float) * N_PARTICLES);
 
-    cudaMalloc(&d_rho, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_N, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_Ux, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_Uy, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_T, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_Ex, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_Ey, sizeof(float) * N_GRID_X * N_GRID_Y);
 
@@ -108,27 +101,32 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaDeviceSynchronize();
 
     for (int step = 0; step < NSteps; ++step) {
-        cudaMemset(d_rho, 0, sizeof(float) * grid_size);
+        cudaMemset(d_N, 0, sizeof(float) * grid_size);
 
-        deposit_charge_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_rho, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly);
+        compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, N_PARTICLES,
+            N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
         cudaDeviceSynchronize();
 
-        solve_poisson_jacobi(d_rho, d_Ex, d_Ey, N_GRID_X, N_GRID_Y, dx, dy, threadsPerBlock);
+        solve_poisson_jacobi(d_N, d_Ex, d_Ey, N_GRID_X, N_GRID_Y, dx, dy, threadsPerBlock);
 
         push_particles_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_vx, d_vy, d_Ex, d_Ey, N_PARTICLES, N_GRID_X, N_GRID_Y,
             Lx, Ly, DT, Q_OVER_M);
         cudaDeviceSynchronize();
 
         if (step % 10 == 0) {
-            float *rho_host = new float[grid_size];
-            cudaMemcpy(rho_host, d_rho, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-            write_output(step, rho_host);
-            delete[] rho_host;
+            float *h_var = new float[grid_size];
+            cudaMemcpy(h_var, d_N, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+            write_output(step, h_var, "N");
+
+            cudaMemcpy(h_var, d_T, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+            write_output(step, h_var, "T");
+            delete[] h_var;
         }
     }
 
     cudaFree(d_x); cudaFree(d_y); cudaFree(d_vx); cudaFree(d_vy);
-    cudaFree(d_rho); cudaFree(d_Ex); cudaFree(d_Ey);
+    cudaFree(d_N); cudaFree(d_Ux); cudaFree(d_Uy);cudaFree(d_T);
+    cudaFree(d_Ex); cudaFree(d_Ey);
 
     std::cout << "Done.\n";
 }

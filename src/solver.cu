@@ -30,7 +30,7 @@ __global__ void apply_neumann_bc_kernel(float *phi, int N_GRID_X, int N_GRID_Y) 
     }
 }
 
-__global__ void jacobi_iteration_kernel(const float *rho, float *phi_new, const float *phi_old,
+__global__ void jacobi_iteration_kernel(const float *N, float *phi_new, const float *phi_old,
                                         int N_GRID_X, int N_GRID_Y, float dx, float dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -40,7 +40,7 @@ __global__ void jacobi_iteration_kernel(const float *rho, float *phi_new, const 
         phi_new[idx] = 1.0f/(2.0f*dx*dx + dy*dy) * (
             + (phi_old[idx - 1] + phi_old[idx + 1]) * dy*dy               // left + right
             + (phi_old[idx - N_GRID_X] + phi_old[idx + N_GRID_X]) * dx*dx // bottom + top
-            + rho[idx] * dx*dx * dy*dy );
+            + N[idx] * dx * dy ); // Number of particles [-] / volume [dx*dy] * dx^2*dy^2
     }
 }
 
@@ -58,7 +58,7 @@ __global__ void compute_electric_field_kernel(const float *phi, float *Ex, float
     }
 }
 
-void solve_poisson_jacobi(float *rho_d, float *Ex_d, float *Ey_d,
+void solve_poisson_jacobi(float *N_d, float *Ex_d, float *Ey_d,
                    int N_GRID_X, int N_GRID_Y, float dx, float dy, int threadsPerBlock) {
     int size = N_GRID_X * N_GRID_Y;
     size_t bytes = size * sizeof(float);
@@ -73,7 +73,7 @@ void solve_poisson_jacobi(float *rho_d, float *Ex_d, float *Ey_d,
     dim3 gridDim((N_GRID_X + threadsPerBlock-1) / threadsPerBlock, (N_GRID_Y + threadsPerBlock-1) / threadsPerBlock);
 
     for (int iter = 0; iter < MAX_ITERS; ++iter) {
-        jacobi_iteration_kernel<<<gridDim, blockDim>>>(rho_d, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
+        jacobi_iteration_kernel<<<gridDim, blockDim>>>(N_d, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         
         apply_neumann_bc_kernel<<<gridDim, blockDim>>>(phi_new, N_GRID_X, N_GRID_Y);
 

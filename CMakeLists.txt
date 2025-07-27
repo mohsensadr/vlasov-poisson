@@ -22,6 +22,7 @@ set(SOURCES
     ${SRC_DIR}/constants.cpp
     ${SRC_DIR}/solver.cu
     ${SRC_DIR}/initialization.cu
+    ${SRC_DIR}/moments.cu
     ${SRC_DIR}/vlasov_poisson.cu
     ${SRC_DIR}/IO.cpp
 )
