@@ -77,7 +77,7 @@ void run(int N_GRID_X, int N_GRID_Y,
     int grid_size = N_GRID_X*N_GRID_Y;
     float *d_x, *d_y, *d_vx, *d_vy;
     float *d_N, *d_Ux, *d_Uy, *d_T, *d_Ex, *d_Ey;
-    float *d_w, *d_NVR;
+    float *d_w, *d_NVR, *d_UxVR, *d_UyVR;
 
     cudaMalloc(&d_x, sizeof(float) * N_PARTICLES);
     cudaMalloc(&d_y, sizeof(float) * N_PARTICLES);
@@ -89,6 +89,8 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaMalloc(&d_NVR, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_Ux, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_Uy, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_UxVR, sizeof(float) * N_GRID_X * N_GRID_Y);
+    cudaMalloc(&d_UyVR, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_T, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_Ex, sizeof(float) * N_GRID_X * N_GRID_Y);
     cudaMalloc(&d_Ey, sizeof(float) * N_GRID_X * N_GRID_Y);
@@ -100,7 +102,7 @@ void run(int N_GRID_X, int N_GRID_Y,
     );
     cudaDeviceSynchronize();
 
-    compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, 
+    compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, d_UxVR, d_UyVR, 
         N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
     cudaDeviceSynchronize();
 
@@ -109,11 +111,11 @@ void run(int N_GRID_X, int N_GRID_Y,
     );
     cudaDeviceSynchronize();
 
-    compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, 
+    compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, d_UxVR, d_UyVR, 
         N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
     cudaDeviceSynchronize();
 
-    post_proc(d_N, d_NVR, d_Ux, d_Uy, d_T, grid_size, 0);
+    post_proc(d_N, d_Ux, d_Uy, d_T, d_NVR, d_UxVR, d_UyVR, grid_size, 0);
     cudaDeviceSynchronize();
 
     for (int step = 1; step < NSteps+1; ++step) {
@@ -125,12 +127,12 @@ void run(int N_GRID_X, int N_GRID_Y,
             Lx, Ly, DT, Q_OVER_M);
         cudaDeviceSynchronize();
 
-        compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR,
+        compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, d_UxVR, d_UyVR,
             N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
         cudaDeviceSynchronize();
 
         if (step % 10 == 0) {
-            post_proc(d_N, d_NVR, d_Ux, d_Uy, d_T, grid_size, step);
+            post_proc(d_N, d_Ux, d_Uy, d_T, d_NVR, d_UxVR, d_UyVR, grid_size, step);
             cudaDeviceSynchronize();
         }
     }
@@ -138,6 +140,7 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaFree(d_x); cudaFree(d_y); cudaFree(d_vx); cudaFree(d_vy);
     cudaFree(d_N); cudaFree(d_Ux); cudaFree(d_Uy);cudaFree(d_T);
     cudaFree(d_Ex); cudaFree(d_Ey);
+    cudaFree(d_w); cudaFree(d_NVR); cudaFree(d_UxVR); cudaFree(d_UyVR);
 
     std::cout << "Done.\n";
 }

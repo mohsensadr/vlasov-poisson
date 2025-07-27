@@ -30,15 +30,13 @@ void write_output(int step, float* x, std::string s) {
     write_to_csv(filename, x);  // assumed declared somewhere
 }
 
-void post_proc(float *d_N, float *d_NVR, float *d_Ux, float *d_Uy, float *d_T, int grid_size, int step){
+void post_proc(float *d_N, float *d_Ux, float *d_Uy, float *d_T, 
+    float *d_NVR, float *d_UxVR, float *d_UyVR, int grid_size, int step){
 
     float *h_var = new float[grid_size];
 
     cudaMemcpy(h_var, d_N, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "N");
-
-    cudaMemcpy(h_var, d_NVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "NVR");
 
     cudaMemcpy(h_var, d_Ux, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "Ux");
@@ -48,6 +46,15 @@ void post_proc(float *d_N, float *d_NVR, float *d_Ux, float *d_Uy, float *d_T, i
 
     cudaMemcpy(h_var, d_T, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "T");
+
+    cudaMemcpy(h_var, d_NVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    write_output(step, h_var, "NVR");
+
+    cudaMemcpy(h_var, d_UxVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    write_output(step, h_var, "UxVR");
+
+    cudaMemcpy(h_var, d_UyVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    write_output(step, h_var, "UyVR");
 
     delete[] h_var;
 

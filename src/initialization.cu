@@ -82,8 +82,6 @@ __global__ void initialize_weights(float *x, float *y, float *N, float *w,
 
     float Ntarget = pdf(x[i], A, kx)/normalizer_pdf * 1.0 / Ly * dx * dy * Ntotal;
 
-    //printf("Ntarget: %f\n", Ntarget);
-
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }
 
