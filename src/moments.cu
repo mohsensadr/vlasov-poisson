@@ -1,4 +1,6 @@
 #include "constants.hpp"
+#include <iostream>
+#include <fstream>
 
 __global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
             int N_GRID_X, int N_GRID_Y,
@@ -23,7 +25,7 @@ __global__ void deposit_density_2d_VR(float *x, float *y, float *w, float *N, fl
         int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
         int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
         int idx = ix + iy * N_GRID_X;
-        atomicAdd(&NVR[idx], (Navg + 1.0 - w[i])/N[idx] );
+        atomicAdd(&NVR[idx], Navg/N[idx] + 1.0f - w[i] );
     }
 }
 
@@ -75,14 +77,18 @@ void compute_moments(float *d_x, float *d_y, float *d_vx, float *d_vy,
 
     // compute number of particles in each cell         
     deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    cudaDeviceSynchronize();
 
     // compute average velocity in each cell
     deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, d_vx, d_vy, d_Ux, d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    cudaDeviceSynchronize();
 
     // compute temperature in each cell
     deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, d_vx, d_vy, d_Ux, d_Uy, d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    cudaDeviceSynchronize();
 
     // compute VR density
     deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_w, d_N, d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    cudaDeviceSynchronize();
 }
 

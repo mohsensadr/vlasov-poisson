@@ -101,19 +101,25 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaDeviceSynchronize();
 
     compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, 
-      N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
+        N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
     cudaDeviceSynchronize();
 
-    // initialize weights
     initialize_weights<<<blocksPerGrid, threadsPerBlock>>>(
         d_x, d_y, d_N, d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly
     );
+    cudaDeviceSynchronize();
+
+    compute_moments(d_x, d_y, d_vx, d_vy, d_N, d_Ux, d_Uy, d_T, d_w, d_NVR, 
+        N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
+    cudaDeviceSynchronize();
 
     post_proc(d_N, d_NVR, d_Ux, d_Uy, d_T, grid_size, 0);
+    cudaDeviceSynchronize();
 
     for (int step = 1; step < NSteps+1; ++step) {
 
         solve_poisson_jacobi(d_N, d_Ex, d_Ey, N_GRID_X, N_GRID_Y, dx, dy, threadsPerBlock);
+        cudaDeviceSynchronize();
 
         push_particles_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_vx, d_vy, d_Ex, d_Ey, N_PARTICLES, N_GRID_X, N_GRID_Y,
             Lx, Ly, DT, Q_OVER_M);
@@ -125,6 +131,7 @@ void run(int N_GRID_X, int N_GRID_Y,
 
         if (step % 10 == 0) {
             post_proc(d_N, d_NVR, d_Ux, d_Uy, d_T, grid_size, step);
+            cudaDeviceSynchronize();
         }
     }
 

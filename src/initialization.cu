@@ -1,8 +1,10 @@
 #include <curand_kernel.h>
 #include <math.h>
+#include <iostream>
+#include <fstream>
 
 __device__ float pdf(float x, float A, float k) {
-    return 1.0f + A * cosf(k * x);  // Assumes x ∈ [0, 2*pi]
+    return 1.0f + A * cosf(k * x);  // Assumes x \in [0, L]
 }
 
 __global__ void initialize_particles(float *x, float *y,
@@ -57,7 +59,7 @@ __global__ void initialize_particles(float *x, float *y,
 }
 
 // assuming initial density has the same Ux, Uy, T as the global equilibrium
-__global__ void initialize_weights(float *x, float *y, float *N,float *w,
+__global__ void initialize_weights(float *x, float *y, float *N, float *w,
         int Ntotal, int N_GRID_X, int N_GRID_Y, float Lx, float Ly, float A=1.0f, float kx=0.6f) {
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -76,9 +78,11 @@ __global__ void initialize_weights(float *x, float *y, float *N,float *w,
 
     float normalizer_pdf = (A * sin(Lx * kx) + Lx * kx) / kx ;
 
+    float Navg = (1.0f*Ntotal) / (1.0f*N_GRID_X*N_GRID_Y);
+
     float Ntarget = pdf(x[i], A, kx)/normalizer_pdf * 1.0 / Ly * dx * dy * Ntotal;
 
-    float Navg = (1.0f*Ntotal) / (1.0f*N_GRID_X*N_GRID_Y);
+    //printf("Ntarget: %f\n", Ntarget);
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }
