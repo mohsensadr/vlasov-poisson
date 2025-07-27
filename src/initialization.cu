@@ -63,6 +63,9 @@ __global__ void initialize_weights(float *x, float *y, float *N,float *w,
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= Ntotal) return;
 
+    float dx = Lx/N_GRID_X;
+    float dy = Ly/N_GRID_Y;
+
     int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
 
     int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
@@ -73,11 +76,10 @@ __global__ void initialize_weights(float *x, float *y, float *N,float *w,
 
     float normalizer_pdf = (A * sin(Lx * kx) + Lx * kx) / kx ;
 
-    float Ntarget = pdf(x[i], A, kx)/normalizer_pdf * 1.0 / Ly;
+    float Ntarget = pdf(x[i], A, kx)/normalizer_pdf * 1.0 / Ly * dx * dy * Ntotal;
 
     float Navg = (1.0f*Ntotal) / (1.0f*N_GRID_X*N_GRID_Y);
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
-
 }
 
