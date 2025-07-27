@@ -31,7 +31,7 @@ void write_output(int step, float* x, std::string s) {
 }
 
 void post_proc(float *d_N, float *d_Ux, float *d_Uy, float *d_T, 
-    float *d_NVR, float *d_UxVR, float *d_UyVR, int grid_size, int step){
+    float *d_NVR, float *d_UxVR, float *d_UyVR, float *d_TVR, int grid_size, int step){
 
     float *h_var = new float[grid_size];
 
@@ -55,6 +55,9 @@ void post_proc(float *d_N, float *d_Ux, float *d_Uy, float *d_T,
 
     cudaMemcpy(h_var, d_UyVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "UyVR");
+
+    cudaMemcpy(h_var, d_TVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    write_output(step, h_var, "TVR");
 
     delete[] h_var;
 
