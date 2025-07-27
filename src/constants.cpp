@@ -11,4 +11,3 @@ float Ly = 1.0f;
 float Q_OVER_M = 1.0f;
 
 int threadsPerBlock = 256;
-

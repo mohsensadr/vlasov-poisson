@@ -1,4 +1,4 @@
-
+#include "constants.hpp"
 
 __global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
             int N_GRID_X, int N_GRID_Y,
@@ -38,7 +38,7 @@ __global__ void deposit_temperature_2d(float *x, float *y, float *N, float *vx, 
         int idx = ix + iy * N_GRID_X;
         float energy = (vx[i]-Ux[idx])*(vx[i]-Ux[idx]);
         energy += (vy[i]-Uy[idx])*(vy[i]-Uy[idx]);
-        atomicAdd(&T[idx], energy/N[idx]); 
+        atomicAdd(&T[idx], energy/N[idx]/(2.0f*kb/m)); // divided by 2.0, because we are in 2d 
     }
 }
 
@@ -46,6 +46,9 @@ void compute_moments(float *d_x, float *d_y, float *d_vx, float *d_vy,
     float *d_N, float *d_Ux, float *d_Uy, float *d_T,
     int n_particles, int N_GRID_X, int N_GRID_Y, float Lx, float Ly,
     int blocksPerGrid, int threadsPerBlock){
+
+    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
+    cudaMemcpyToSymbol(m, &m_host, sizeof(float));
 
     // compute number of particles in each cell         
     deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
