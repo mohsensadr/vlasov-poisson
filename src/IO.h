@@ -18,4 +18,4 @@ void write_to_csv(const char* filename, float* x);
  * @param step The current simulation step.
  * @param rho_host Pointer to host memory containing the density data.
  */
-void write_output(int step, float* x, string s);
+void write_output(int step, float* x, std::string s);

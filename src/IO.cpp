@@ -22,11 +22,11 @@ void write_to_csv(const char *filename, float *x) {
     out.close();
 }
 
-void write_output(int step, float* x, string s) {
+void write_output(int step, float* x, std::string s) {
     fs::create_directories("data");
 
     char filename[64];
-    snprintf(filename, sizeof(filename), "data/%s_step_%03d.csv", s, step);
-    write_density_to_csv(filename, x);  // assumed declared somewhere
+    snprintf(filename, sizeof(filename), "data/%s_step_%03d.csv", s.c_str(), step);
+    write_to_csv(filename, x);  // assumed declared somewhere
     std::cout << "Saved: " << filename << "\n";
 }
