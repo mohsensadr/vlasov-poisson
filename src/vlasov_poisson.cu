@@ -114,13 +114,7 @@ void run(int N_GRID_X, int N_GRID_Y,
         cudaDeviceSynchronize();
 
         if (step % 10 == 0) {
-            float *h_var = new float[grid_size];
-            cudaMemcpy(h_var, d_N, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-            write_output(step, h_var, "N");
-
-            cudaMemcpy(h_var, d_T, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-            write_output(step, h_var, "T");
-            delete[] h_var;
+            post_proc(d_N, d_Ux, d_Uy, d_T, grid_size, step);
         }
     }
 

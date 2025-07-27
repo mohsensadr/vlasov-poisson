@@ -19,3 +19,5 @@ void write_to_csv(const char* filename, float* x);
  * @param rho_host Pointer to host memory containing the density data.
  */
 void write_output(int step, float* x, std::string s);
+
+void post_proc(float *d_N, float *d_Ux, float *d_Uy, float *d_T, int grid_size, int step);
