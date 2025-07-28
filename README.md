@@ -1,16 +1,16 @@
-# ⚡ Vlasov-Poisson with Variance Reduction
+# Vlasov-Poisson with Variance Reduction
 
 A CUDA/C++ implementation of the **particle-based solution** to the **Vlasov–Poisson equation** with **Variance Reduction** using **importance sampling weights**. This project provides a high-performance GPU-accelerated framework for simulating plasma dynamics with reduced statistical noise, enabling more accurate long-time evolution of distribution functions.
 
 ---
 
-## 🚀 Overview
+## Overview
 
 The **Vlasov–Poisson equation** describes the evolution of a plasma or charged particle system under self-consistent electric fields. Traditional particle-in-cell (PIC) methods can suffer from high variance due to noisy sampling of velocity space. This implementation addresses that challenge by applying **variance reduction** through a **control variate** and dynamic **importance weights**.
 
 ---
 
-## 📌 Features
+## Features
 
 - ⚙️ **Fully GPU-accelerated**: Uses CUDA to parallelize particle updates and field solvers.
 - 🎯 **Variance reduction (VR)**: Implements control variate methods to reduce noise in moment computations.
