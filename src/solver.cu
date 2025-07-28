@@ -8,7 +8,6 @@ static __device__ int periodic_index(int i, int N) {
 
 __global__ void apply_neumann_bc_kernel(float *phi, int N_GRID_X, int N_GRID_Y) {
     int idx;
-
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Bottom and top boundaries (j = 0 and j = N_GRID_Y-1)
