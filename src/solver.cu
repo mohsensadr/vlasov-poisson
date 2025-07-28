@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <math.h>
 #include <solver.cuh>
+#include "constants.hpp"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -108,8 +109,7 @@ __global__ void compute_electric_field_kernel_periodic(const float *phi, float *
     }
 }
 
-void solve_poisson_jacobi(float *N_d, float *Ex_d, float *Ey_d,
-                   int N_GRID_X, int N_GRID_Y, float dx, float dy, int threadsPerBlock) {
+void solve_poisson_jacobi(FieldContainer& fc) {
     int size = N_GRID_X * N_GRID_Y;
     size_t bytes = size * sizeof(float);
 
@@ -123,7 +123,7 @@ void solve_poisson_jacobi(float *N_d, float *Ex_d, float *Ey_d,
     dim3 gridDim((N_GRID_X + threadsPerBlock-1) / threadsPerBlock, (N_GRID_Y + threadsPerBlock-1) / threadsPerBlock);
 
     for (int iter = 0; iter < MAX_ITERS; ++iter) {
-        jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(N_d, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
+        jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(fc.d_N, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         
         //apply_neumann_bc_kernel<<<gridDim, blockDim>>>(phi_new, N_GRID_X, N_GRID_Y);
 
@@ -133,7 +133,7 @@ void solve_poisson_jacobi(float *N_d, float *Ex_d, float *Ey_d,
     }
 
     // Compute electric field from potential
-    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, Ex_d, Ey_d, N_GRID_X, N_GRID_Y, dx, dy);
+    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
 
     // Cleanup
     cudaFree(phi_old);

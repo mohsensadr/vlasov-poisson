@@ -1,6 +1,8 @@
 #include "constants.hpp"
 #include <iostream>
 #include <fstream>
+#include "particle_container.cuh"
+#include "field_container.cuh"
 
 __global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
             int N_GRID_X, int N_GRID_Y,
@@ -90,48 +92,36 @@ __global__ void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *
     }
 }
 
-void compute_moments(float *d_x, float *d_y, float *d_vx, float *d_vy, 
-    float *d_N, float *d_Ux, float *d_Uy, float *d_T,
-    float *d_w, float *d_NVR, float *d_UxVR, float *d_UyVR, float *d_TVR,
-    int n_particles, int N_GRID_X, int N_GRID_Y, float Lx, float Ly,
-    int blocksPerGrid, int threadsPerBlock){
-    
-    int grid_size = N_GRID_X*N_GRID_Y;
+void compute_moments(ParticleContainer& pc, FieldContainer& fc){
+    int n_particles = N_PARTICLES;
+
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
 
-    cudaMemset(d_N, 0, sizeof(float) * grid_size);
-    cudaMemset(d_Ux, 0, sizeof(float) * grid_size);
-    cudaMemset(d_Uy, 0, sizeof(float) * grid_size);
-    cudaMemset(d_T, 0, sizeof(float) * grid_size);
-
-    cudaMemset(d_NVR, 0, sizeof(float) * grid_size);
-    cudaMemset(d_UxVR, 0, sizeof(float) * grid_size);
-    cudaMemset(d_UyVR, 0, sizeof(float) * grid_size);
-    cudaMemset(d_TVR, 0, sizeof(float) * grid_size);
+    fc.setZero();
 
     // compute number of particles in each cell (MC)      
-    deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute bulk velocity (MC)
-    deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, d_vx, d_vy, d_Ux, d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute bulk temperature (MC)
-    deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, d_vx, d_vy, d_Ux, d_Uy, d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute density (VR)
-    deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_w, d_N, d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute velocity (VR)
-    deposit_velocity_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_vx, d_vy, d_w, d_UxVR, d_UyVR, d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute temperature (VR)
-    deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_vx, d_vy, d_w, d_N, d_NVR, d_UxVR, d_UyVR, d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 }
 

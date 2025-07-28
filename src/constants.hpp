@@ -2,15 +2,19 @@
 
 extern int N_GRID_X;
 extern int N_GRID_Y;
+extern int grid_size;
 
 extern int N_PARTICLES;
 extern float DT;
 extern int NSteps;
 extern float Lx;
 extern float Ly;
+extern float dx;
+extern float dy;
 extern float Q_OVER_M;
 
 extern int threadsPerBlock;
+extern int blocksPerGrid;
 
 // Host-accessible constants
 constexpr float kb_host = 1.0f; //1.380649e-23f;

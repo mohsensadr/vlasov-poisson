@@ -3,6 +3,7 @@
 #include "IO.h"
 #include <cstdio>   // for snprintf
 #include <string>
+#include <field_container.cuh>
 
 /**
  * @brief Write the density grid to a CSV file.
@@ -20,5 +21,4 @@ void write_to_csv(const char* filename, float* x);
  */
 void write_output(int step, float* x, std::string s);
 
-void post_proc(float *d_N, float *d_Ux, float *d_Uy, float *d_T, 
-    float *d_NVR, float *d_UxVR, float *d_UyVR, float *d_TVR, int grid_size, int step);
+void post_proc(FieldContainer &fc, int step);

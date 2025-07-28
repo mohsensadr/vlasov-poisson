@@ -52,7 +52,7 @@ public:
     }
 
     // Optional: zero out all field arrays
-    void clear() {
+    void setZero() {
         size_t bytes = grid_size * sizeof(float);
         cudaMemset(d_N, 0, bytes);
         cudaMemset(d_Ux, 0, bytes);

@@ -2,6 +2,7 @@
 #define SOLVER_H
 
 #include <cuda_runtime.h>
+#include <field_container.cuh>
 
 // Constants
 #define MAX_ITERS 10000
@@ -15,7 +16,6 @@ __global__ void compute_electric_field_kernel(const float *phi, float *Ex, float
                                               int N_GRID_X, int N_GRID_Y, float dx, float dy);
 
 // Main solver function
-void solve_poisson_jacobi(float *rho_d, float *Ex_d, float *Ey_d,
-                   int N_GRID_X, int N_GRID_Y, float dx, float dy, int threadsPerBlock);
+void solve_poisson_jacobi(FieldContainer &fc);
 
 #endif  // SOLVER_H

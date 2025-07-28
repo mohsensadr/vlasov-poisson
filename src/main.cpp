@@ -26,23 +26,19 @@ int main(int argc, char** argv) {
         return -1;
       }
     }
+    blocksPerGrid = (N_PARTICLES + threadsPerBlock - 1) / threadsPerBlock;
 
     std::cout << "N_GRID_X: " << N_GRID_X << "\n";
     std::cout << "N_GRID_Y: " << N_GRID_Y << "\n";
     std::cout << "N_PARTICLES: " << N_PARTICLES << "\n";
     std::cout << "DT: " << DT << "\n";
+    std::cout << "NSteps: " << NSteps << "\n";
     std::cout << "Lx: " << Lx << "\n";
     std::cout << "Ly: " << Ly << "\n";
     std::cout << "threadsPerBlock: " << threadsPerBlock << "\n";
+    std::cout << "blocksPerGrid: " << blocksPerGrid << "\n";
 
-    run(N_GRID_X, N_GRID_Y,
-            N_PARTICLES,
-            DT,
-            NSteps,
-            Lx,
-            Ly,
-            threadsPerBlock
-            );
+    run();
 
     return 0;
 }

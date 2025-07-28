@@ -30,33 +30,32 @@ void write_output(int step, float* x, std::string s) {
     write_to_csv(filename, x);  // assumed declared somewhere
 }
 
-void post_proc(float *d_N, float *d_Ux, float *d_Uy, float *d_T, 
-    float *d_NVR, float *d_UxVR, float *d_UyVR, float *d_TVR, int grid_size, int step){
+void post_proc(FieldContainer &fc, int step){
 
     float *h_var = new float[grid_size];
 
-    cudaMemcpy(h_var, d_N, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_N, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "N");
 
-    cudaMemcpy(h_var, d_Ux, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_Ux, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "Ux");
 
-    cudaMemcpy(h_var, d_Uy, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_Uy, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "Uy");
 
-    cudaMemcpy(h_var, d_T, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_T, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "T");
 
-    cudaMemcpy(h_var, d_NVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_NVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "NVR");
 
-    cudaMemcpy(h_var, d_UxVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_UxVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "UxVR");
 
-    cudaMemcpy(h_var, d_UyVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_UyVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "UyVR");
 
-    cudaMemcpy(h_var, d_TVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_var, fc.d_TVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
     write_output(step, h_var, "TVR");
 
     delete[] h_var;

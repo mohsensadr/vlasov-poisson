@@ -94,26 +94,16 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
     }
 }
 
-void run(int N_GRID_X, int N_GRID_Y,
-            int N_PARTICLES,
-            float DT,
-            int NSteps,
-            float Lx,
-            float Ly,
-            int threadsPerBlock
-            ) {
-
+void run() {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
     
-    float dx = Lx/N_GRID_X;
-    float dy = Ly/N_GRID_Y;
-    int grid_size = N_GRID_X*N_GRID_Y;
+    dx = Lx/N_GRID_X;
+    dy = Ly/N_GRID_Y;
+    grid_size = N_GRID_X*N_GRID_Y;
 
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
-
-    int blocksPerGrid = (N_PARTICLES + threadsPerBlock - 1) / threadsPerBlock;
 
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
@@ -122,8 +112,7 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaDeviceSynchronize();
 
     // compute moments, needed to find emperical density field
-    compute_moments(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR,
-        N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
+    compute_moments(pc, fc);
     cudaDeviceSynchronize();
 
     // set particle weights given estimted and exact fields
@@ -133,18 +122,17 @@ void run(int N_GRID_X, int N_GRID_Y,
     cudaDeviceSynchronize();
 
     // recompute moments given weights, mainly for VR estimate
-    compute_moments(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR,
-        N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
+    compute_moments(pc, fc);
     cudaDeviceSynchronize();
 
     // write out initial fields
-    post_proc(fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, grid_size, 0);
+    post_proc(fc, 0);
     cudaDeviceSynchronize();
 
     for (int step = 1; step < NSteps+1; ++step) {
 
         // compute Electric field
-        solve_poisson_jacobi(fc.d_N, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy, threadsPerBlock);
+        solve_poisson_jacobi(fc);
         cudaDeviceSynchronize();
 
         // map weights from global to local eq.
@@ -167,13 +155,12 @@ void run(int N_GRID_X, int N_GRID_Y,
         cudaDeviceSynchronize();
 
         // update moments
-        compute_moments(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR,
-            N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, blocksPerGrid, threadsPerBlock);
+        compute_moments(pc, fc);
         cudaDeviceSynchronize();
 
         // print output
         if (step % 10 == 0) {
-            post_proc(fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, grid_size, step);
+            post_proc(fc, step);
             cudaDeviceSynchronize();
         }
     }
