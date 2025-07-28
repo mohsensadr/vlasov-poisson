@@ -79,12 +79,13 @@ __global__ void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *
     ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
+        float Navg = (1.0f*n_particles) / (1.0f*N_GRID_X*N_GRID_Y);
         int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
         int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
         int idx = ix + iy * N_GRID_X;
         float energy = (vx[i]-UxVR[idx])*(vx[i]-UxVR[idx]);
         energy += (vy[i]-UyVR[idx])*(vy[i]-UyVR[idx]);
-        float ans = 1.0f/N[idx]/(kb/m) + ( energy*(1.0f-w[i])/2.0f ) / (kb/m) / NVR[idx];
+        float ans = Navg/(kb/m)/NVR[idx]/N[idx] + ( energy*(1.0f-w[i])/2.0f ) / (kb/m) / NVR[idx];
         atomicAdd(&TVR[idx], ans);
     }
 }
