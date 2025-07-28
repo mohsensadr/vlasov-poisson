@@ -8,8 +8,8 @@
 #include "constants.hpp"
 #include "vlasov_poisson.cuh"
 
-// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly Q_OVER_M threadsPerBlock
-// ./main 128 128 100000 0.01 100 1.0 1.0 0.5 256
+// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock
+// ./main 128 128 100000 0.01 100 1.0 1.0 256
 
 int main(int argc, char** argv) {
     if (argc > 1) N_GRID_X = std::atoi(argv[1]);
@@ -19,9 +19,8 @@ int main(int argc, char** argv) {
     if (argc > 5) NSteps = std::atof(argv[5]);
     if (argc > 6) Lx = std::atof(argv[6]);
     if (argc > 7) Ly = std::atof(argv[7]);
-    if (argc > 8) Q_OVER_M = std::atof(argv[8]);
-    if (argc > 9){
-      threadsPerBlock = std::atof(argv[9]);
+    if (argc > 8){
+      threadsPerBlock = std::atof(argv[8]);
         if (threadsPerBlock <= 0) {
           std::cout << "Block size must be a positive integer.\n";
         return -1;
@@ -34,7 +33,6 @@ int main(int argc, char** argv) {
     std::cout << "DT: " << DT << "\n";
     std::cout << "Lx: " << Lx << "\n";
     std::cout << "Ly: " << Ly << "\n";
-    std::cout << "Q_OVER_M: " << Q_OVER_M << "\n";
     std::cout << "threadsPerBlock: " << threadsPerBlock << "\n";
 
     run(N_GRID_X, N_GRID_Y,
@@ -43,7 +41,6 @@ int main(int argc, char** argv) {
             NSteps,
             Lx,
             Ly,
-            Q_OVER_M,
             threadsPerBlock
             );
 

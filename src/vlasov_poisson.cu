@@ -10,7 +10,7 @@
 #include "IO.h"
 #include "moments.cuh"
 
-__device__ int periodic_index(int i, int N) {
+static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
 }
 
@@ -49,8 +49,8 @@ __global__ void update_velocity_2d(float *x, float *y, float *vx, float *vy,
     float Exi = w00 * Ex[i00] + w01 * Ex[i01] + w10 * Ex[i10] + w11 * Ex[i11];
     float Eyi = w00 * Ey[i00] + w01 * Ey[i01] + w10 * Ey[i10] + w11 * Ey[i11];
 
-    vx[i] += Q_OVER_M * Exi * DT;
-    vy[i] += Q_OVER_M * Eyi * DT;
+    vx[i] += - Q_OVER_M * Exi * DT;
+    vy[i] += - Q_OVER_M * Eyi * DT;
 }
 
 __global__ void update_position_2d(float *x, float *y, float *vx, float *vy,
@@ -98,7 +98,6 @@ void run(int N_GRID_X, int N_GRID_Y,
             int NSteps,
             float Lx,
             float Ly,
-            float Q_OVER_M,
             int threadsPerBlock
             ) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));

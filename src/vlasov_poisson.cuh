@@ -8,6 +8,5 @@ void run(int N_GRID_X, int N_GRID_Y,
             int NSteps,
             float Lx,
             float Ly,
-            float Q_OVER_M,
             int threadsPerBlock
             );

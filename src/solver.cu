@@ -2,6 +2,10 @@
 #include <math.h>
 #include <solver.cuh>
 
+static __device__ int periodic_index(int i, int N) {
+    return (i + N) % N;
+}
+
 __global__ void apply_neumann_bc_kernel(float *phi, int N_GRID_X, int N_GRID_Y) {
     int idx;
 
@@ -44,6 +48,31 @@ __global__ void jacobi_iteration_kernel(const float *N, float *phi_new, const fl
     }
 }
 
+__global__ void jacobi_iteration_kernel_periodic(const float *N, float *phi_new, const float *phi_old,
+                                        int N_GRID_X, int N_GRID_Y, float dx, float dy) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (i < N_GRID_X && j < N_GRID_Y) {
+        int ip = periodic_index(i + 1, N_GRID_X);
+        int im = periodic_index(i - 1, N_GRID_X);
+        int jp = periodic_index(j + 1, N_GRID_Y);
+        int jm = periodic_index(j - 1, N_GRID_Y);
+
+        int idx = j * N_GRID_X + i;
+        int idx_im = j * N_GRID_X + im;
+        int idx_ip = j * N_GRID_X + ip;
+        int idx_jm = jm * N_GRID_X + i;
+        int idx_jp = jp * N_GRID_X + i;
+
+        phi_new[idx] = 1.0f / (2.0f * (dx*dx + dy*dy)) * (
+            (phi_old[idx_im] + phi_old[idx_ip]) * dy * dy +
+            (phi_old[idx_jm] + phi_old[idx_jp]) * dx * dx +
+            - N[idx] * dx * dy
+        );
+    }
+}
+
 __global__ void compute_electric_field_kernel(const float *phi, float *Ex, float *Ey,
                                               int N_GRID_X, int N_GRID_Y, float dx, float dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -55,6 +84,28 @@ __global__ void compute_electric_field_kernel(const float *phi, float *Ex, float
         // Central differences for electric field (E = -grad(phi))
         Ex[idx] = -(phi[idx + 1] - phi[idx - 1]) / (2.0f*dx);
         Ey[idx] = -(phi[idx + N_GRID_X] - phi[idx - N_GRID_X]) / (2.0f*dy);
+    }
+}
+
+__global__ void compute_electric_field_kernel_periodic(const float *phi, float *Ex, float *Ey,
+                                              int N_GRID_X, int N_GRID_Y, float dx, float dy) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (i < N_GRID_X && j < N_GRID_Y) {
+        int ip = periodic_index(i + 1, N_GRID_X);
+        int im = periodic_index(i - 1, N_GRID_X);
+        int jp = periodic_index(j + 1, N_GRID_Y);
+        int jm = periodic_index(j - 1, N_GRID_Y);
+
+        int idx = j * N_GRID_X + i;
+        int idx_ip = j * N_GRID_X + ip;
+        int idx_im = j * N_GRID_X + im;
+        int idx_jp = jp * N_GRID_X + i;
+        int idx_jm = jm * N_GRID_X + i;
+
+        Ex[idx] = -(phi[idx_ip] - phi[idx_im]) / (2.0f * dx);
+        Ey[idx] = -(phi[idx_jp] - phi[idx_jm]) / (2.0f * dy);
     }
 }
 
@@ -73,9 +124,9 @@ void solve_poisson_jacobi(float *N_d, float *Ex_d, float *Ey_d,
     dim3 gridDim((N_GRID_X + threadsPerBlock-1) / threadsPerBlock, (N_GRID_Y + threadsPerBlock-1) / threadsPerBlock);
 
     for (int iter = 0; iter < MAX_ITERS; ++iter) {
-        jacobi_iteration_kernel<<<gridDim, blockDim>>>(N_d, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
+        jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(N_d, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         
-        apply_neumann_bc_kernel<<<gridDim, blockDim>>>(phi_new, N_GRID_X, N_GRID_Y);
+        //apply_neumann_bc_kernel<<<gridDim, blockDim>>>(phi_new, N_GRID_X, N_GRID_Y);
 
         float* tmp = phi_old;
         phi_old = phi_new;
@@ -83,7 +134,7 @@ void solve_poisson_jacobi(float *N_d, float *Ex_d, float *Ey_d,
     }
 
     // Compute electric field from potential
-    compute_electric_field_kernel<<<gridDim, blockDim>>>(phi_old, Ex_d, Ey_d, N_GRID_X, N_GRID_Y, dx, dy);
+    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, Ex_d, Ey_d, N_GRID_X, N_GRID_Y, dx, dy);
 
     // Cleanup
     cudaFree(phi_old);
