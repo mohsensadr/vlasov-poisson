@@ -97,7 +97,9 @@ void compute_moments(float *d_x, float *d_y, float *d_vx, float *d_vy,
     int blocksPerGrid, int threadsPerBlock){
     
     int grid_size = N_GRID_X*N_GRID_Y;
-    
+    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
+    cudaMemcpyToSymbol(m, &m_host, sizeof(float));
+
     cudaMemset(d_N, 0, sizeof(float) * grid_size);
     cudaMemset(d_Ux, 0, sizeof(float) * grid_size);
     cudaMemset(d_Uy, 0, sizeof(float) * grid_size);
@@ -107,9 +109,6 @@ void compute_moments(float *d_x, float *d_y, float *d_vx, float *d_vy,
     cudaMemset(d_UxVR, 0, sizeof(float) * grid_size);
     cudaMemset(d_UyVR, 0, sizeof(float) * grid_size);
     cudaMemset(d_TVR, 0, sizeof(float) * grid_size);
-
-    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
-    cudaMemcpyToSymbol(m, &m_host, sizeof(float));
 
     // compute number of particles in each cell (MC)      
     deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(d_x, d_y, d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
