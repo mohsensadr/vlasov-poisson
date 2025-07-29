@@ -1,9 +1,10 @@
 // IO.cpp
 #include <filesystem>
 #include <iostream>
-#include <fstream>   // REQUIRED for std::ofstream
-#include <cstdio>    // for snprintf
+#include <fstream>
+#include <cstdio>
 #include <string>
+#include <vector>
 
 #include "IO.h"
 #include "constants.hpp"
@@ -11,7 +12,7 @@
 
 namespace fs = std::filesystem;
 
-void write_to_csv(const char *filename, float *x) {
+void write_to_csv(const std::string& filename, float *x) {
     std::ofstream out(filename);
     for (int j = 0; j < N_GRID_Y; ++j) {
         for (int i = 0; i < N_GRID_X; ++i) {
@@ -24,41 +25,33 @@ void write_to_csv(const char *filename, float *x) {
 }
 
 void write_output(int step, float* x, std::string s) {
+    std::ostringstream oss;
     fs::create_directories("data");
-    char filename[64];
-    snprintf(filename, sizeof(filename), "data/%s_step_%03d.csv", s.c_str(), step);
-    write_to_csv(filename, x);  // assumed declared somewhere
+    oss << "data/" << s << "_step_" << std::setw(3) << std::setfill('0') << step << ".csv";
+    write_to_csv(oss.str(), x);
 }
 
 void post_proc(FieldContainer &fc, int step){
 
-    float *h_var = new float[grid_size];
+    std::vector<float> h_var(grid_size);
 
-    cudaMemcpy(h_var, fc.d_N, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "N");
+    auto dump = [&](float* device_ptr, const std::string& label) {
+        cudaError_t err = cudaMemcpy(h_var.data(), device_ptr, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            std::cerr << "CUDA memcpy failed: " << cudaGetErrorString(err) << std::endl;
+            return;
+        } 
+        write_output(step, h_var.data(), label);
+    };
 
-    cudaMemcpy(h_var, fc.d_Ux, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "Ux");
-
-    cudaMemcpy(h_var, fc.d_Uy, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "Uy");
-
-    cudaMemcpy(h_var, fc.d_T, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "T");
-
-    cudaMemcpy(h_var, fc.d_NVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "NVR");
-
-    cudaMemcpy(h_var, fc.d_UxVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "UxVR");
-
-    cudaMemcpy(h_var, fc.d_UyVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "UyVR");
-
-    cudaMemcpy(h_var, fc.d_TVR, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
-    write_output(step, h_var, "TVR");
-
-    delete[] h_var;
+    dump(fc.d_N, "N");
+    dump(fc.d_Ux, "Ux");
+    dump(fc.d_Uy, "Uy");
+    dump(fc.d_T, "T");
+    dump(fc.d_NVR, "NVR");
+    dump(fc.d_UxVR, "UxVR");
+    dump(fc.d_UyVR, "UyVR");
+    dump(fc.d_TVR, "TVR");
 
     std::cout << "Wrote postproc in step: " << step << std::endl;
 }
