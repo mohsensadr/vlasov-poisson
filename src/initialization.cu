@@ -3,9 +3,9 @@
 #include <iostream>
 #include <fstream>
 
-__device__ float pdf(float x, float Lx, float A, float kx) {
+__device__ float pdf(float x, float y, float Lx, float Ly, float A, float kx) {
     float normalizer_pdf = (A * sinf(Lx * kx) + Lx * kx) / kx ;
-    return ( 1.0f + A * cosf(kx * x) ) / normalizer_pdf;
+    return ( 1.0f + A * cosf(kx * x) ) / normalizer_pdf * 1.0f / Ly;
 }
 
 __global__ void initialize_particles(float *x, float *y,
@@ -19,44 +19,37 @@ __global__ void initialize_particles(float *x, float *y,
     curand_init(1234ULL, i, 0, &state);
 
     // --- Sample x from custom PDF using rejection sampling ---
-    float x_sample = 0.0f;
+    float x_sample = 0.0f, y_sample = 0.0f;
     bool accepted = false;
-    float f_max = 1.0f + fabsf(A);  // upper bound for rejection sampling
 
-    for (int attempt = 0; attempt < 100 && !accepted; ++attempt) {
+    float normalizer_pdf = (A * sinf(Lx * kx) + Lx * kx) / kx;
+    float p_max = (1.0f + A) / normalizer_pdf * (1.0f / Ly);
+
+    for (int attempt = 0; attempt < 200 && !accepted; ++attempt) {
         float x_try = Lx * curand_uniform(&state);
-        float u = curand_uniform(&state);
-        if (u < pdf(x_try, A, kx, Lx) / f_max) {
+        float y_try = Ly * curand_uniform(&state);
+        float u = curand_uniform(&state);  // u in [0, 1)
+
+        float p = pdf(x_try, y_try, Lx, Ly, A, kx);
+        if (u < p / p_max) {
             x_sample = x_try;
+            y_sample = y_try;
             accepted = true;
         }
     }
     // fallback in case rejection fails
     if (!accepted) {
         x_sample = Lx * curand_uniform(&state);
+        y_sample = Ly * curand_uniform(&state);
     }
 
-    // --- Uniform y in domain ---
-    float y_sample = Ly * curand_uniform(&state);
+    // Write accepted sample
     x[i] = x_sample;
     y[i] = y_sample;
 
-    // --- Maxwellian velocity (Box-Muller) ---
-    float u1 = curand_uniform(&state);
-    float u2 = curand_uniform(&state);
-    float u3 = curand_uniform(&state);
-    float u4 = curand_uniform(&state);
-
-    float vx_ = sqrtf(-2.0f * logf(u1)) * cosf(2.0f * M_PI * u2);
-    float vy_ = sqrtf(-2.0f * logf(u3)) * cosf(2.0f * M_PI * u4);
-
-    // Landau perturbation in velocity
-    float alpha = 0.01f;
-    vx_ += alpha * cosf(2.0f * M_PI * x_sample / Lx);
-    vy_ += alpha * cosf(2.0f * M_PI * y_sample / Ly);
-
-    vx[i] = vx_;
-    vy[i] = vy_;
+    // --- Normal velocity
+    vx[i] = curand_normal(&state);
+    vy[i] = curand_normal(&state);
 }
 
 // assuming initial density has the same Ux, Uy, T as the global equilibrium
@@ -79,7 +72,7 @@ __global__ void initialize_weights(float *x, float *y, float *N, float *w,
 
     float Navg = (1.0f*Ntotal) / (1.0f*N_GRID_X*N_GRID_Y);
 
-    float Ntarget = pdf(x[i], A, kx, Lx) * 1.0 / Ly * dx * dy * Ntotal;
+    float Ntarget = pdf(x[i], y[i], Lx, Ly, A, kx) * dx * dy * Ntotal;
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }
