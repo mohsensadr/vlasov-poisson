@@ -1,3 +1,5 @@
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 # Vlasov-Poisson with Variance Reduction
 
 A CUDA/C++ implementation of the **particle-based solution** to the **Vlasov–Poisson equation** with **Variance Reduction** using **importance sampling weights**. This project provides a high-performance GPU-accelerated framework for simulating plasma dynamics with reduced statistical noise, enabling more accurate long-time evolution of distribution functions.
