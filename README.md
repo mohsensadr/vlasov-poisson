@@ -33,6 +33,6 @@ The **Vlasov–Poisson equation** describes the evolution of a plasma or charged
 ```bash
 git clone https://github.com/yourusername/vlasov-poisson.git
 cd vlasov-poisson
-mkdir build && cd build
+mkdir bin && cd bin
 cmake ..
 make
