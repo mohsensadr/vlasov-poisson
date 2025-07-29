@@ -3,8 +3,9 @@
 #include <iostream>
 #include <fstream>
 
-__device__ float pdf(float x, float A, float k) {
-    return 1.0f + A * cosf(k * x);  // Assumes x \in [0, L]
+__device__ float pdf(float x, float Lx, float A, float kx) {
+    float normalizer_pdf = (A * sinf(Lx * kx) + Lx * kx) / kx ;
+    return ( 1.0f + A * cosf(kx * x) ) / normalizer_pdf;
 }
 
 __global__ void initialize_particles(float *x, float *y,
@@ -25,7 +26,7 @@ __global__ void initialize_particles(float *x, float *y,
     for (int attempt = 0; attempt < 100 && !accepted; ++attempt) {
         float x_try = Lx * curand_uniform(&state);
         float u = curand_uniform(&state);
-        if (u < pdf(x_try, A, kx) / f_max) {
+        if (u < pdf(x_try, A, kx, Lx) / f_max) {
             x_sample = x_try;
             accepted = true;
         }
@@ -76,11 +77,9 @@ __global__ void initialize_weights(float *x, float *y, float *N, float *w,
     
     float Nemp = N[idx];
 
-    float normalizer_pdf = (A * sin(Lx * kx) + Lx * kx) / kx ;
-
     float Navg = (1.0f*Ntotal) / (1.0f*N_GRID_X*N_GRID_Y);
 
-    float Ntarget = pdf(x[i], A, kx)/normalizer_pdf * 1.0 / Ly * dx * dy * Ntotal;
+    float Ntarget = pdf(x[i], A, kx, Lx) * 1.0 / Ly * dx * dy * Ntotal;
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }
