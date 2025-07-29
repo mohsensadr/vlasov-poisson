@@ -1,27 +1,56 @@
 #pragma once
 
-extern int N_GRID_X;
-extern int N_GRID_Y;
-extern int grid_size;
+/**
+ * @file constants.hpp
+ * @brief Global configuration and physical constants for the Vlasov–Poisson solver.
+ *
+ * This header declares simulation parameters used across host and device code.
+ * Device constants are conditionally declared for CUDA compilation.
+ */
 
-extern int N_PARTICLES;
-extern float DT;
-extern int NSteps;
-extern float Lx;
-extern float Ly;
-extern float dx;
-extern float dy;
-extern float Q_OVER_M;
+// ----------------------------
+// Grid and domain configuration
+// ----------------------------
+extern int N_GRID_X;      ///< Grid resolution in X direction
+extern int N_GRID_Y;      ///< Grid resolution in Y direction
+extern int grid_size;     ///< Total number of grid cells (N_GRID_X * N_GRID_Y)
 
-extern int threadsPerBlock;
-extern int blocksPerGrid;
+// ----------------------------
+// Particle and time settings
+// ----------------------------
+extern int N_PARTICLES;   ///< Number of particles
+extern float DT;          ///< Time step
+extern int NSteps;        ///< Number of simulation steps
 
-// Host-accessible constants
-constexpr float kb_host = 1.0f; //1.380649e-23f;
-constexpr float m_host  = 1.0f; //9.1093837e-31f;
+// ----------------------------
+// Domain size and spacing
+// ----------------------------
+extern float Lx;          ///< Domain size in X
+extern float Ly;          ///< Domain size in Y
+extern float dx;          ///< Grid spacing in X
+extern float dy;          ///< Grid spacing in Y
 
+// ----------------------------
+// Physical constants
+// ----------------------------
+extern float Q_OVER_M;    ///< Charge-to-mass ratio (q/m)
+
+// ----------------------------
+// CUDA kernel configuration
+// ----------------------------
+extern int threadsPerBlock; ///< CUDA threads per block
+extern int blocksPerGrid;   ///< CUDA blocks per grid
+
+// ----------------------------
+// Host-side constants
+// ----------------------------
+constexpr float kb_host = 1.0f; ///< Boltzmann constant on host (normalized units)
+constexpr float m_host  = 1.0f; ///< Particle mass on host (normalized units)
+
+// ----------------------------
+// Device-side constants
+// ----------------------------
 #ifdef __CUDACC__
-// Device-side constants (only visible to nvcc)
-__constant__ float kb;
-__constant__ float m;
+__constant__ float kb;         ///< Boltzmann constant on device
+__constant__ float m;          ///< Particle mass on device
 #endif
