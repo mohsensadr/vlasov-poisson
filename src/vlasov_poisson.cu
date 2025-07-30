@@ -12,7 +12,8 @@
 #include "particle_container.cuh"
 #include "field_container.cuh"
 
-struct LandauDamping_PDF_position {
+/*
+struct PDF_position {
     float A;
     float kx;
     float Lx;
@@ -31,6 +32,27 @@ struct LandauDamping_PDF_position {
     }
 
 };
+*/
+
+struct PDF_position {
+    float var;
+    float Lx;
+    float Ly;
+
+    __device__ float normalizer() const {
+        return 2.0*3.14*var;
+    }
+
+    __device__ float pmax() const {
+        return 1.0;
+    }
+
+    __device__ float operator()(float x, float y) const {
+        return expf(-(x-Lx/2.0f)*(x-Lx/2.0f)/2.0/var -(y-Ly/2.0f)*(y-Ly/2.0f)/2.0/var);
+    }
+
+};
+
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -125,10 +147,8 @@ void run() {
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
 
-    if(problem=="LandauDamping"){
-        float A=1.0f, kx=0.5;
-        LandauDamping_PDF_position pdf_position{A, kx, Lx, Ly};
-    }
+    //PDF_position pdf_position{1.0f, 0.5f, Lx, Ly};
+    PDF_position pdf_position{Lx*Ly*10.0f, Lx, Ly};
 
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
