@@ -16,15 +16,13 @@
  * @param Lx Domain length in x
  * @param Ly Domain length in y
  * @param N Number of particles
- * @param A Amplitude parameter for the PDF
- * @param kx Wavenumber parameter for the PDF
  * @param pdf PDF functor to use for rejection sampling
  */
 template<typename PDF>
 __global__ void initialize_particles(float *x, float *y,
                                      float *vx, float *vy,
                                      float Lx, float Ly,
-                                     int N, float A, float kx, PDF pdf) {
+                                     int N, PDF pdf) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= N) return;
 
@@ -34,14 +32,14 @@ __global__ void initialize_particles(float *x, float *y,
     float x_sample = 0.0f, y_sample = 0.0f;
     bool accepted = false;
 
-    float normalizer_pdf = (A * sinf(Lx * kx) + Lx * kx) / kx;
-    float p_max = (1.0f + A) / normalizer_pdf * (1.0f / Ly);
+    float normalizer_pdf = pdf.normalizer();
+    float p_max = pdf.pmax();
 
     for (int attempt = 0; attempt < 200 && !accepted; ++attempt) {
         float x_try = Lx * curand_uniform(&state);
         float y_try = Ly * curand_uniform(&state);
         float u = curand_uniform(&state);
-        float p = pdf(x_try, y_try, Lx, Ly, A, kx);
+        float p = pdf(x_try, y_try);
         if (u < p / p_max) {
             x_sample = x_try;
             y_sample = y_try;
@@ -74,15 +72,12 @@ __global__ void initialize_particles(float *x, float *y,
  * @param N_GRID_Y Number of grid cells in y
  * @param Lx Domain length in x
  * @param Ly Domain length in y
- * @param A Amplitude parameter for the PDF
- * @param kx Wavenumber parameter for the PDF
  * @param pdf PDF functor to use for target density
  */
 template<typename PDF>
 __global__ void initialize_weights(float *x, float *y, float *N, float *w,
                                    int Ntotal, int N_GRID_X, int N_GRID_Y,
-                                   float Lx, float Ly,
-                                   float A, float kx, PDF pdf) {
+                                   float Lx, float Ly, PDF pdf) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= Ntotal) return;
 
@@ -95,7 +90,7 @@ __global__ void initialize_weights(float *x, float *y, float *N, float *w,
 
     float Nemp = N[idx];
     float Navg = float(Ntotal) / (N_GRID_X * N_GRID_Y);
-    float Ntarget = pdf(x[i], y[i], Lx, Ly, A, kx) * dx * dy * Ntotal;
+    float Ntarget = pdf(x[i], y[i]) * dx * dy * Ntotal;
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }

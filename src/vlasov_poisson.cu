@@ -13,10 +13,23 @@
 #include "field_container.cuh"
 
 struct LandauDamping_PDF_position {
-    __device__ float operator()(float x, float y, float Lx, float Ly, float A, float kx) const {
-        float normalizer_pdf = (A * sinf(Lx * kx) + Lx * kx) / kx;
-        return (1.0f + A * cosf(kx * x)) / normalizer_pdf * (1.0f / Ly);
+    float A;
+    float kx;
+    float Lx;
+    float Ly;
+
+    __device__ float normalizer() const {
+        return (A * sinf(Lx * kx) + Lx * kx) / kx;
     }
+
+    __device__ float pmax() const {
+        return (1.0f + A) / normalizer() * (1.0f / Ly);
+    }
+
+    __device__ float operator()(float x, float y) const {
+        return (1.0f + A * cosf(kx * x)) / normalizer() * (1.0f / Ly);
+    }
+
 };
 
 static __device__ int periodic_index(int i, int N) {
@@ -114,11 +127,11 @@ void run() {
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
 
-    LandauDamping_PDF_position pdf_position;
+    LandauDamping_PDF_position pdf_position{A, kx, Lx, Ly};
 
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
-        pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, Lx, Ly, N_PARTICLES, A, kx, pdf_position
+        pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, Lx, Ly, N_PARTICLES, pdf_position
     );
     cudaDeviceSynchronize();
 
@@ -128,7 +141,7 @@ void run() {
 
     // set particle weights given estimted and exact fields
     initialize_weights<<<blocksPerGrid, threadsPerBlock>>>(
-        pc.d_x, pc.d_y, fc.d_N, pc.d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, A, kx, pdf_position
+        pc.d_x, pc.d_y, fc.d_N, pc.d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, pdf_position
     );
     cudaDeviceSynchronize();
 
