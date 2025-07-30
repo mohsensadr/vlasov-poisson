@@ -12,6 +12,13 @@
 #include "particle_container.cuh"
 #include "field_container.cuh"
 
+struct LandauDamping_PDF_position {
+    __device__ float operator()(float x, float y, float Lx, float Ly, float A, float kx) const {
+        float normalizer_pdf = (A * sinf(Lx * kx) + Lx * kx) / kx;
+        return (1.0f + A * cosf(kx * x)) / normalizer_pdf * (1.0f / Ly);
+    }
+};
+
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
 }
@@ -95,6 +102,8 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
 }
 
 void run() {
+    float A=1.0f, kx=0.5;
+
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
     
@@ -105,9 +114,11 @@ void run() {
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
 
+    LandauDamping_PDF_position pdf_position;
+
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
-        pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, Lx, Ly, N_PARTICLES
+        pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, Lx, Ly, N_PARTICLES, A, kx, pdf_position
     );
     cudaDeviceSynchronize();
 
@@ -117,7 +128,7 @@ void run() {
 
     // set particle weights given estimted and exact fields
     initialize_weights<<<blocksPerGrid, threadsPerBlock>>>(
-        pc.d_x, pc.d_y, fc.d_N, pc.d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly
+        pc.d_x, pc.d_y, fc.d_N, pc.d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, A, kx, pdf_position
     );
     cudaDeviceSynchronize();
 
