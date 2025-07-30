@@ -115,8 +115,6 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
 }
 
 void run() {
-    float A=1.0f, kx=0.5;
-
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
     
@@ -127,7 +125,10 @@ void run() {
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
 
-    LandauDamping_PDF_position pdf_position{A, kx, Lx, Ly};
+    if(problem=="LandauDamping"){
+        float A=1.0f, kx=0.5;
+        LandauDamping_PDF_position pdf_position{A, kx, Lx, Ly};
+    }
 
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(

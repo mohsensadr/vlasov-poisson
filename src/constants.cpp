@@ -19,10 +19,11 @@ float DT = 0.01f;          ///< Time step size
 int NSteps = 100;          ///< Number of simulation steps
 
 // Domain dimensions and spacing
-float Lx = 1.0f;           ///< Domain length in X
-float Ly = 1.0f;           ///< Domain length in Y
-float dx = 0.01f;          ///< Grid spacing in X
-float dy = 0.01f;          ///< Grid spacing in Y
+float Lx = 1.0f;                       ///< Domain length in X
+float Ly = 1.0f;                       ///< Domain length in Y
+float dx = 0.01f;                      ///< Grid spacing in X
+float dy = 0.01f;                      ///< Grid spacing in Y
+std::string problem = "LandauDamping"; ///< string specifying the problem
 
 // Physical constants
 float Q_OVER_M = 1.0f;     ///< Charge-to-mass ratio (q/m)
