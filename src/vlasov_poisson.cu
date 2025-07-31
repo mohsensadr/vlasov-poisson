@@ -112,8 +112,6 @@ void run(const std::string& pdf_type, float* pdf_params) {
         pdf_position = make_gaussian_pdf(pdf_params[0], Lx, Ly);
     } else if (pdf_type == "cosine" || pdf_type == "Cosine") {
         pdf_position = make_cosine_pdf(pdf_params[0], pdf_params[1], Lx, Ly);
-    } else if (pdf_type == "uniform" || pdf_type == "Uniform") {
-        pdf_position = make_uniform_pdf(Lx, Ly);
     } else if (pdf_type == "double_gaussian" || pdf_type == "DoubleGaussian") {
         pdf_position = make_double_gaussian_pdf(pdf_params[0], pdf_params[1], pdf_params[2], pdf_params[3], 
                                               pdf_params[4], pdf_params[5], pdf_params[6], pdf_params[7], Lx, Ly);

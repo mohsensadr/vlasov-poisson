@@ -51,3 +51,5 @@ constexpr float m_host  = 1.0f; ///< Particle mass on host (normalized units)
 __constant__ float kb;         ///< Boltzmann constant on device
 __constant__ float m;          ///< Particle mass on device
 #endif
+
+#define PI_F 3.14159265358979f

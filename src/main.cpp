@@ -3,8 +3,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cuda_runtime.h>
-#include <filesystem>  // C++17
-#include <cstdio>      // for snprintf
+#include <filesystem>
+#include <cstdio>
 #include <vector>
 #include <string>
 #include "constants.hpp"
@@ -13,10 +13,9 @@
 
 // ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock [pdf_type] [pdf_params...]
 // Examples:
-// ./main 128 128 100000 0.01 100 1.0 1.0 256 gaussian 0.1
-// ./main 128 128 100000 0.01 100 1.0 1.0 256 cosine 1.0 0.5
-// ./main 128 128 100000 0.01 100 1.0 1.0 256 uniform
-// ./main 128 128 100000 0.01 100 1.0 1.0 256 double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 gaussian 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 cosine 1.0 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
 
 int main(int argc, char** argv) {
     if (argc > 1) N_GRID_X = std::atoi(argv[1]);
