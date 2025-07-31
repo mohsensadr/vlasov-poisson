@@ -11,48 +11,7 @@
 #include "moments.cuh"
 #include "particle_container.cuh"
 #include "field_container.cuh"
-
-/*
-struct PDF_position {
-    float A;
-    float kx;
-    float Lx;
-    float Ly;
-
-    __device__ float normalizer() const {
-        return (A * sinf(Lx * kx) + Lx * kx) / kx;
-    }
-
-    __device__ float pmax() const {
-        return (1.0f + A) / normalizer() * (1.0f / Ly);
-    }
-
-    __device__ float operator()(float x, float y) const {
-        return (1.0f + A * cosf(kx * x)) / normalizer() * (1.0f / Ly);
-    }
-
-};
-*/
-
-struct PDF_position {
-    float var;
-    float Lx;
-    float Ly;
-
-    __device__ float normalizer() const {
-        return 2.0*3.14*var;
-    }
-
-    __device__ float pmax() const {
-        return 1.0;
-    }
-
-    __device__ float operator()(float x, float y) const {
-        return expf(-(x-Lx/2.0f)*(x-Lx/2.0f)/2.0/var -(y-Ly/2.0f)*(y-Ly/2.0f)/2.0/var);
-    }
-
-};
-
+#include "pdf_simple.cuh"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -137,6 +96,11 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
 }
 
 void run() {
+    // Default to Gaussian PDF
+    run("gaussian", {Lx*Ly*0.1f});
+}
+
+void run(const std::string& pdf_type, const std::vector<float>& pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
     
@@ -147,8 +111,29 @@ void run() {
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
 
-    //PDF_position pdf_position{1.0f, 0.5f, Lx, Ly};
-    PDF_position pdf_position{Lx*Ly*10.0f, Lx, Ly};
+    // Create the appropriate PDF struct for device use
+    PDF_position pdf_position;
+    if (pdf_type == "gaussian" || pdf_type == "Gaussian") {
+        if (pdf_params.size() < 1) {
+            throw std::invalid_argument("Gaussian PDF requires 1 parameter (variance)");
+        }
+        pdf_position = make_gaussian_pdf(pdf_params[0], Lx, Ly);
+    } else if (pdf_type == "cosine" || pdf_type == "Cosine") {
+        if (pdf_params.size() < 2) {
+            throw std::invalid_argument("Cosine PDF requires 2 parameters (amplitude, wavenumber)");
+        }
+        pdf_position = make_cosine_pdf(pdf_params[0], pdf_params[1], Lx, Ly);
+    } else if (pdf_type == "uniform" || pdf_type == "Uniform") {
+        pdf_position = make_uniform_pdf(Lx, Ly);
+    } else if (pdf_type == "double_gaussian" || pdf_type == "DoubleGaussian") {
+        if (pdf_params.size() < 8) {
+            throw std::invalid_argument("Double Gaussian PDF requires 8 parameters");
+        }
+        pdf_position = make_double_gaussian_pdf(pdf_params[0], pdf_params[1], pdf_params[2], pdf_params[3], 
+                                              pdf_params[4], pdf_params[5], pdf_params[6], pdf_params[7], Lx, Ly);
+    } else {
+        throw std::invalid_argument("Unknown PDF type: " + pdf_type);
+    }
 
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
