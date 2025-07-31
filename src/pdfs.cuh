@@ -34,6 +34,7 @@ struct PDF_position {
         : type(1), Lx(length_x), Ly(length_y) {
         params[0] = amplitude;
         params[1] = wavenumber;
+        params[2] = (params[0] * sinf(Lx * wavenumber) + Lx * wavenumber) / wavenumber ;
     }
     
     // Constructor for Uniform
@@ -62,7 +63,7 @@ struct PDF_position {
             case 0: // gaussian
                 return 2.0f * 3.14159f * params[0];
             case 1: // cosine
-                return (params[0] * sinf(Lx * params[1]) + Lx * params[1]) / params[1];
+                return (params[0] * sinf(Lx * params[1]) + Lx * params[1]) / params[1] * 1.0f / Ly;
             case 2: // uniform
                 return Lx * Ly;
             case 3: // double_gaussian
@@ -77,7 +78,7 @@ struct PDF_position {
             case 0: // gaussian
                 return 1.0f;
             case 1: // cosine
-                return (1.0f + params[0]) / normalizer() * (1.0f / Ly);
+                return  (1.0f + params[0]) / params[2] * (1.0f / Ly);
             case 2: // uniform
                 return 1.0f / (Lx * Ly);
             case 3: // double_gaussian
@@ -95,7 +96,7 @@ struct PDF_position {
                 return expf(-(dx*dx + dy*dy)/(2.0f*params[0]));
             }
             case 1: // cosine
-                return (1.0f + params[0] * cosf(params[1] * x)) / normalizer() * (1.0f / Ly);
+                return (1.0f + params[0] * cosf(params[1] * x)) / params[2] * (1.0f / Ly);
             case 2: // uniform
                 return 1.0f / (Lx * Ly);
             case 3: { // double_gaussian
