@@ -11,6 +11,7 @@
 #include "moments.cuh"
 #include "particle_container.cuh"
 #include "field_container.cuh"
+#include "pdfs.cuh"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -94,7 +95,7 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
     }
 }
 
-void run() {
+void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
     
@@ -105,9 +106,22 @@ void run() {
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y);
 
+    // Create the appropriate PDF struct for device use
+    PDF_position pdf_position;
+    if (pdf_type == "gaussian" || pdf_type == "Gaussian") {
+        pdf_position = make_gaussian_pdf(pdf_params[0], Lx, Ly);
+    } else if (pdf_type == "cosine" || pdf_type == "Cosine") {
+        pdf_position = make_cosine_pdf(pdf_params[0], pdf_params[1], Lx, Ly);
+    } else if (pdf_type == "double_gaussian" || pdf_type == "DoubleGaussian") {
+        pdf_position = make_double_gaussian_pdf(pdf_params[0], pdf_params[1], pdf_params[2], pdf_params[3], 
+                                              pdf_params[4], pdf_params[5], pdf_params[6], pdf_params[7], Lx, Ly);
+    } else {
+        throw std::invalid_argument("Unknown PDF type: " + pdf_type);
+    }
+
     // initialize particle velocity and position
     initialize_particles<<<blocksPerGrid, threadsPerBlock>>>(
-        pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, Lx, Ly, N_PARTICLES
+        pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, Lx, Ly, N_PARTICLES, pdf_position
     );
     cudaDeviceSynchronize();
 
@@ -117,7 +131,7 @@ void run() {
 
     // set particle weights given estimted and exact fields
     initialize_weights<<<blocksPerGrid, threadsPerBlock>>>(
-        pc.d_x, pc.d_y, fc.d_N, pc.d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly
+        pc.d_x, pc.d_y, fc.d_N, pc.d_w, N_PARTICLES, N_GRID_X, N_GRID_Y, Lx, Ly, pdf_position
     );
     cudaDeviceSynchronize();
 

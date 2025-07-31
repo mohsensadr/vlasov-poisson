@@ -1,5 +1,5 @@
 #pragma once
-
+#include <string>
 /**
  * @file constants.hpp
  * @brief Global configuration and physical constants for the Vlasov–Poisson solver.
@@ -16,19 +16,16 @@ extern int N_GRID_Y;      ///< Grid resolution in Y direction
 extern int grid_size;     ///< Total number of grid cells (N_GRID_X * N_GRID_Y)
 
 // ----------------------------
-// Particle and time settings
+// Particle simulation details
 // ----------------------------
-extern int N_PARTICLES;   ///< Number of particles
-extern float DT;          ///< Time step
-extern int NSteps;        ///< Number of simulation steps
-
-// ----------------------------
-// Domain size and spacing
-// ----------------------------
-extern float Lx;          ///< Domain size in X
-extern float Ly;          ///< Domain size in Y
-extern float dx;          ///< Grid spacing in X
-extern float dy;          ///< Grid spacing in Y
+extern int N_PARTICLES;        ///< Number of particles
+extern float DT;               ///< Time step
+extern int NSteps;             ///< Number of simulation steps
+extern float Lx;               ///< Domain size in X
+extern float Ly;               ///< Domain size in Y
+extern float dx;               ///< Grid spacing in X
+extern float dy;               ///< Grid spacing in Y
+extern std::string problem;    ///< string specifying the problem
 
 // ----------------------------
 // Physical constants
@@ -54,3 +51,5 @@ constexpr float m_host  = 1.0f; ///< Particle mass on host (normalized units)
 __constant__ float kb;         ///< Boltzmann constant on device
 __constant__ float m;          ///< Particle mass on device
 #endif
+
+#define PI_F 3.14159265358979f
