@@ -1,5 +1,5 @@
-#ifndef PDF_SIMPLE_CUH
-#define PDF_SIMPLE_CUH
+#ifndef PDF_CUH
+#define PDF_CUH
 
 #include <cuda_runtime.h>
 #include <cmath>
@@ -128,4 +128,4 @@ __device__ __host__ inline PDF_position make_double_gaussian_pdf(float var1, flo
     return PDF_position(var1, var2, x1, y1, x2, y2, w1, w2, Lx, Ly, 3);
 }
 
-#endif // PDF_SIMPLE_CUH 
+#endif // PDF_CUH 

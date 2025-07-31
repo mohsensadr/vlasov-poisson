@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 
     // PDF selection
     std::string pdf_type = "gaussian";  // default
-    float pdf_params[10];
+    float pdf_params[8];
     
     if (argc > 9) {
         pdf_type = argv[9];

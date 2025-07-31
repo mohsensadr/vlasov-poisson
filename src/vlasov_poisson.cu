@@ -11,7 +11,7 @@
 #include "moments.cuh"
 #include "particle_container.cuh"
 #include "field_container.cuh"
-#include "pdf_simple.cuh"
+#include "pdfs.cuh"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
