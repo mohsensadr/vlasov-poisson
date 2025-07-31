@@ -4,5 +4,4 @@
 #include <string>
 #include <vector>
 
-void run();
-void run(const std::string& pdf_type, const std::vector<float>& pdf_params);
+void run(const std::string& pdf_type, float *pdf_params);

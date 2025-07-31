@@ -37,14 +37,14 @@ int main(int argc, char** argv) {
 
     // PDF selection
     std::string pdf_type = "gaussian";  // default
-    std::vector<float> pdf_params;
+    float pdf_params[10];
     
     if (argc > 9) {
         pdf_type = argv[9];
         
         // Parse PDF parameters
         for (int i = 10; i < argc; ++i) {
-            pdf_params.push_back(std::atof(argv[i]));
+            pdf_params[i-10] = std::atof(argv[i]);
         }
     }
 

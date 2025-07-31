@@ -95,12 +95,7 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
     }
 }
 
-void run() {
-    // Default to Gaussian PDF
-    run("gaussian", {Lx*Ly*0.1f});
-}
-
-void run(const std::string& pdf_type, const std::vector<float>& pdf_params) {
+void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
     
@@ -114,21 +109,12 @@ void run(const std::string& pdf_type, const std::vector<float>& pdf_params) {
     // Create the appropriate PDF struct for device use
     PDF_position pdf_position;
     if (pdf_type == "gaussian" || pdf_type == "Gaussian") {
-        if (pdf_params.size() < 1) {
-            throw std::invalid_argument("Gaussian PDF requires 1 parameter (variance)");
-        }
         pdf_position = make_gaussian_pdf(pdf_params[0], Lx, Ly);
     } else if (pdf_type == "cosine" || pdf_type == "Cosine") {
-        if (pdf_params.size() < 2) {
-            throw std::invalid_argument("Cosine PDF requires 2 parameters (amplitude, wavenumber)");
-        }
         pdf_position = make_cosine_pdf(pdf_params[0], pdf_params[1], Lx, Ly);
     } else if (pdf_type == "uniform" || pdf_type == "Uniform") {
         pdf_position = make_uniform_pdf(Lx, Ly);
     } else if (pdf_type == "double_gaussian" || pdf_type == "DoubleGaussian") {
-        if (pdf_params.size() < 8) {
-            throw std::invalid_argument("Double Gaussian PDF requires 8 parameters");
-        }
         pdf_position = make_double_gaussian_pdf(pdf_params[0], pdf_params[1], pdf_params[2], pdf_params[3], 
                                               pdf_params[4], pdf_params[5], pdf_params[6], pdf_params[7], Lx, Ly);
     } else {

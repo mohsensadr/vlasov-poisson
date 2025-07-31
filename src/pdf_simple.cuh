@@ -18,6 +18,11 @@ struct PDF_position {
     float params[8];  // Store all parameters in a flat array
     float Lx, Ly;
     
+    __host__ __device__
+    PDF_position() : type(-1), Lx(1.0f), Ly(1.0f) {
+        for (int i = 0; i < 8; ++i) params[i] = 0.0f;
+    }
+
     // Constructor for Gaussian
     __device__ __host__ PDF_position(float variance, float length_x, float length_y) 
         : type(0), Lx(length_x), Ly(length_y) {
