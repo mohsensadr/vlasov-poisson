@@ -1,8 +1,7 @@
 name: CI workflow
 
 on:
-  push:
-    branches: [ "main" ]
+  push: # No branch filter: triggers on push to any branch
   pull_request:
     branches: [ "main" ]
 
