@@ -125,8 +125,6 @@ void solve_poisson_jacobi(FieldContainer& fc) {
     for (int iter = 0; iter < MAX_ITERS; ++iter) {
         jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(fc.d_N, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         
-        //apply_neumann_bc_kernel<<<gridDim, blockDim>>>(phi_new, N_GRID_X, N_GRID_Y);
-
         float* tmp = phi_old;
         phi_old = phi_new;
         phi_new = tmp;

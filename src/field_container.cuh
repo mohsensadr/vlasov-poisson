@@ -3,6 +3,9 @@
 #include <cuda_runtime.h>
 #include <stdexcept>
 
+#define TILE_X 32
+#define TILE_Y 32
+
 class FieldContainer {
 public:
     float *d_N = nullptr;
