@@ -37,6 +37,7 @@ extern float Q_OVER_M;    ///< Charge-to-mass ratio (q/m)
 // ----------------------------
 extern int threadsPerBlock; ///< CUDA threads per block
 extern int blocksPerGrid;   ///< CUDA blocks per grid
+extern bool Tiling;         ///< CUDA blocks per grid
 
 // ----------------------------
 // Host-side constants

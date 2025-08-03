@@ -565,12 +565,12 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc){
         (N_GRID_Y + TILE_Y - 1) / TILE_Y,
         1  // You can parallelize over z if needed
     );
-    deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    cudaDeviceSynchronize();
 
-    // compute number of particles in each cell (MC)      
-    //deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //cudaDeviceSynchronize();
+    if(Tiling)
+      deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    else
+      deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    cudaDeviceSynchronize();
 
     // compute bulk velocity (MC)
     deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
