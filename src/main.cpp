@@ -7,15 +7,17 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include <algorithm>
+
 #include "constants.hpp"
 #include "vlasov_poisson.cuh"
 // Using simple CUDA-compatible PDF approach
 
-// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock [pdf_type] [pdf_params...]
+// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock [tiling] [pdf_type] [pdf_params...]
 // Examples:
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 gaussian 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 cosine 1.0 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 true gaussian 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 true cosine 1.0 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 true double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
 
 int main(int argc, char** argv) {
     if (argc > 1) N_GRID_X = std::atoi(argv[1]);
@@ -34,16 +36,22 @@ int main(int argc, char** argv) {
     }
     blocksPerGrid = (N_PARTICLES + threadsPerBlock - 1) / threadsPerBlock;
 
+    if (argc > 9) {
+        std::string tiling_arg(argv[9]);
+        std::transform(tiling_arg.begin(), tiling_arg.end(), tiling_arg.begin(), ::tolower);
+        Tiling = (tiling_arg == "true" || tiling_arg == "1" || tiling_arg == "yes");
+    }
+
     // PDF selection
     std::string pdf_type = "gaussian";  // default
-    float pdf_params[8];
+    float pdf_params[8] = {0., 0., 0., 0., 0., 0., 0., 0.};
     
-    if (argc > 9) {
-        pdf_type = argv[9];
+    if (argc > 10) {
+        pdf_type = argv[10];
         
         // Parse PDF parameters
-        for (int i = 10; i < argc; ++i) {
-            pdf_params[i-10] = std::atof(argv[i]);
+        for (int i = 11; i < argc; ++i) {
+            pdf_params[i-11] = std::atof(argv[i]);
         }
     }
 
@@ -56,6 +64,7 @@ int main(int argc, char** argv) {
     std::cout << "Ly: " << Ly << "\n";
     std::cout << "threadsPerBlock: " << threadsPerBlock << "\n";
     std::cout << "blocksPerGrid: " << blocksPerGrid << "\n";
+    std::cout << "Tiling: " << (Tiling ? "enabled" : "disabled") << "\n";
     std::cout << "PDF Type: " << pdf_type << "\n";
     std::cout << "PDF Parameters: ";
     for (float param : pdf_params) {

@@ -98,7 +98,7 @@ __global__ void map_weights_2d(float *x, float *y, float *vx, float *vy, float *
 void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
-    
+
     dx = Lx/N_GRID_X;
     dy = Ly/N_GRID_Y;
     grid_size = N_GRID_X*N_GRID_Y;
@@ -144,7 +144,6 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     for (int step = 1; step < NSteps+1; ++step) {
-
         // compute Electric field
         solve_poisson_jacobi(fc);
         cudaDeviceSynchronize();
