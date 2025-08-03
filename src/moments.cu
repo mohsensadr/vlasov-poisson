@@ -91,9 +91,6 @@ __global__ void deposit_velocity_2d(float *x, float *y, float *N, float *vx, flo
     }
 }
 
-#define TILE_X 32
-#define TILE_Y 32
-
 __global__ void deposit_velocity_2d_tiled(
     const float *x, const float *y,
     const float *vx, const float *vy,
@@ -139,7 +136,7 @@ __global__ void deposit_velocity_2d_tiled(
         if (gx >= 0 && gx < N_GRID_X &&
             gy >= 0 && gy < N_GRID_Y) {
 
-            // Check if particle belongs in this tile
+                          // Check if particle belongs in this tile
             if (gx >= tile_origin_x && gx < tile_origin_x + TILE_X &&
                 gy >= tile_origin_y && gy < tile_origin_y + TILE_Y) {
 
@@ -162,7 +159,7 @@ __global__ void deposit_velocity_2d_tiled(
 
     __syncthreads();
 
-    // Write accumulated shared memory back to global memory
+        // Write accumulated shared memory back to global memory
     int gx = tile_origin_x + threadIdx.x;
     int gy = tile_origin_y + threadIdx.y;
 
@@ -187,6 +184,83 @@ __global__ void deposit_temperature_2d(float *x, float *y, float *N, float *vx, 
         float energy = (vx[i]-Ux[idx])*(vx[i]-Ux[idx]);
         energy += (vy[i]-Uy[idx])*(vy[i]-Uy[idx]);
         atomicAdd(&T[idx], energy/N[idx]/(2.0f*kb/m));
+    }
+}
+
+__global__ void deposit_temperature_2d_tiled(
+    const float *x, const float *y,
+    const float *vx, const float *vy,
+    const float *N, const float *Ux, const float *Uy,
+    float *T,
+    int n_particles,
+    int N_GRID_X, int N_GRID_Y,
+    float Lx, float Ly
+) {
+    int tile_origin_x = blockIdx.x * TILE_X;
+    int tile_origin_y = blockIdx.y * TILE_Y;
+
+    float dx = float(N_GRID_X) / Lx;
+    float dy = float(N_GRID_Y) / Ly;
+
+    __shared__ float tile_T[TILE_Y][TILE_X];
+
+    // Initialize shared memory
+    int local_x = threadIdx.x;
+    int local_y = threadIdx.y;
+
+    if (local_x < TILE_X && local_y < TILE_Y) {
+        tile_T[local_y][local_x] = 0.0f;
+    }
+    __syncthreads();
+
+    // Flatten thread ID across block and z dimension
+    int tid = blockIdx.z * blockDim.x * blockDim.y +
+              threadIdx.y * blockDim.x + threadIdx.x;
+    int total_threads = gridDim.z * blockDim.x * blockDim.y;
+
+    for (int i = tid; i < n_particles; i += total_threads) {
+        float px = x[i];
+        float py = y[i];
+
+        int gx = int(px * dx);
+        int gy = int(py * dy);
+
+        // Clamp to grid bounds
+        gx = min(max(gx, 0), N_GRID_X - 1);
+        gy = min(max(gy, 0), N_GRID_Y - 1);
+
+        // Check if this grid cell belongs to current tile
+        if (gx >= tile_origin_x && gx < tile_origin_x + TILE_X &&
+            gy >= tile_origin_y && gy < tile_origin_y + TILE_Y) {
+
+            int lx = gx - tile_origin_x;
+            int ly = gy - tile_origin_y;
+            int idx = gx + gy * N_GRID_X;
+
+            float nval = N[idx];
+            if (nval > 0.0f) {
+                float ux = Ux[idx];
+                float uy = Uy[idx];
+                float dvx = vx[i] - ux;
+                float dvy = vy[i] - uy;
+                float energy = (dvx * dvx + dvy * dvy);
+                float temp_contrib = energy / nval / (2.0f * kb / m);
+
+                atomicAdd(&tile_T[ly][lx], temp_contrib);
+            }
+        }
+    }
+
+    __syncthreads();
+
+    // Write tile results back to global memory
+    int gx = tile_origin_x + threadIdx.x;
+    int gy = tile_origin_y + threadIdx.y;
+
+    if (threadIdx.x < TILE_X && threadIdx.y < TILE_Y &&
+        gx < N_GRID_X && gy < N_GRID_Y) {
+        int idx = gx + gy * N_GRID_X;
+        atomicAdd(&T[idx], tile_T[threadIdx.y][threadIdx.x]);
     }
 }
 
@@ -258,12 +332,17 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc){
     //cudaDeviceSynchronize();
 
     // compute bulk velocity (MC)
-    deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     //deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //cudaError_t err = cudaGetLastError();
+    //if (err != cudaSuccess) {
+    //    std::cerr << "Kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+    //}
     cudaDeviceSynchronize();
 
     // compute bulk temperature (MC)
-    deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute density (VR)
@@ -277,5 +356,6 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc){
     // compute temperature (VR)
     deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
+    
 }
 
