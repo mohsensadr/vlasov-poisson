@@ -464,6 +464,93 @@ __global__ void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *
     }
 }
 
+__global__ void deposit_temperature_2d_VR_tiled(
+    const float *x, const float *y,
+    const float *vx, const float *vy,
+    const float *w,
+    const float *N,
+    const float *NVR,
+    const float *UxVR, const float *UyVR,
+    float *TVR,
+    int n_particles,
+    int N_GRID_X, int N_GRID_Y,
+    float Lx, float Ly
+) {
+    int tile_origin_x = blockIdx.x * TILE_X;
+    int tile_origin_y = blockIdx.y * TILE_Y;
+
+    float dx = float(N_GRID_X) / Lx;
+    float dy = float(N_GRID_Y) / Ly;
+
+    // Shared memory tile
+    __shared__ float tile_TVR[TILE_Y][TILE_X];
+
+    int local_x = threadIdx.x;
+    int local_y = threadIdx.y;
+
+    if (local_x < TILE_X && local_y < TILE_Y) {
+        tile_TVR[local_y][local_x] = 0.0f;
+    }
+    __syncthreads();
+
+    int tid = blockIdx.z * blockDim.x * blockDim.y +
+              threadIdx.y * blockDim.x + threadIdx.x;
+    int total_threads = gridDim.z * blockDim.x * blockDim.y;
+
+    float Navg = float(n_particles) / (float(N_GRID_X) * float(N_GRID_Y));
+    const float coeff = 1.0f / (kb / m); // precompute inverse thermal energy unit
+
+    for (int i = tid; i < n_particles; i += total_threads) {
+        float px = x[i];
+        float py = y[i];
+
+        int gx = int(px * dx);
+        int gy = int(py * dy);
+
+        // Clamp
+        gx = min(max(gx, 0), N_GRID_X - 1);
+        gy = min(max(gy, 0), N_GRID_Y - 1);
+
+        if (gx >= tile_origin_x && gx < tile_origin_x + TILE_X &&
+            gy >= tile_origin_y && gy < tile_origin_y + TILE_Y) {
+
+            int lx = gx - tile_origin_x;
+            int ly = gy - tile_origin_y;
+            int idx = gx + gy * N_GRID_X;
+
+            float n = N[idx];
+            float nvr = NVR[idx];
+
+            if (n > 0.0f && nvr > 0.0f) {
+                float ux = UxVR[idx];
+                float uy = UyVR[idx];
+
+                float dvx = vx[i] - ux;
+                float dvy = vy[i] - uy;
+
+                float energy = 0.5f * (dvx * dvx + dvy * dvy) * (1.0f - w[i]);
+
+                float result = coeff * (Navg / (n * nvr) + energy / nvr);
+
+                atomicAdd(&tile_TVR[ly][lx], result);
+            }
+        }
+    }
+
+    __syncthreads();
+
+    // Write back to global memory
+    int gx = tile_origin_x + threadIdx.x;
+    int gy = tile_origin_y + threadIdx.y;
+
+    if (gx < N_GRID_X && gy < N_GRID_Y &&
+        threadIdx.x < TILE_X && threadIdx.y < TILE_Y) {
+
+        int idx = gx + gy * N_GRID_X;
+        atomicAdd(&TVR[idx], tile_TVR[threadIdx.y][threadIdx.x]);
+    }
+}
+
 void compute_moments(ParticleContainer& pc, FieldContainer& fc){
     int n_particles = N_PARTICLES;
 
@@ -506,7 +593,8 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc){
     cudaDeviceSynchronize();
 
     // compute temperature (VR)
-    deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
     
 }
