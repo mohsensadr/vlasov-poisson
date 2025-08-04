@@ -3,8 +3,8 @@
 #include <cuda_runtime.h>
 #include <stdexcept>
 
-#define TILE_X 32
-#define TILE_Y 32
+#define TILE_X 16
+#define TILE_Y 16
 
 class FieldContainer {
 public:
