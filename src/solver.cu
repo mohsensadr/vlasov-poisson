@@ -170,6 +170,130 @@ __global__ void compute_electric_field_kernel_periodic(const float *phi, float *
     }
 }
 
+/*
+__global__ void compute_electric_field_kernel_periodic_tiled(
+    const float *phi, float *Ex, float *Ey,
+    int N_GRID_X, int N_GRID_Y, float dx, float dy)
+{
+    __shared__ float tile[TILE_Y + 2][TILE_X + 2];
+
+
+    int global_i = blockIdx.x * TILE_X + threadIdx.x;
+    int global_j = blockIdx.y * TILE_Y + threadIdx.y;
+
+    int local_i = threadIdx.x + 1; // +1 for halo
+    int local_j = threadIdx.y + 1;
+
+    // Compute periodic indices for halo
+    int i_left   = (global_i - 1 + N_GRID_X) % N_GRID_X;
+    int i_right  = (global_i + 1) % N_GRID_X;
+    int j_up     = (global_j - 1 + N_GRID_Y) % N_GRID_Y;
+    int j_down   = (global_j + 1) % N_GRID_Y;
+
+    // Load center
+    if (global_i < N_GRID_X && global_j < N_GRID_Y)
+        tile[local_j][local_i] = phi[global_j * N_GRID_X + global_i];
+
+    // Halo columns
+    if (threadIdx.x == 0 && global_j < N_GRID_Y)
+        tile[local_j][0] = phi[global_j * N_GRID_X + i_left];
+    if (threadIdx.x == TILE_X - 1 && global_j < N_GRID_Y)
+        tile[local_j][TILE_X + 1] = phi[global_j * N_GRID_X + i_right];
+
+    // Halo rows
+    if (threadIdx.y == 0 && global_i < N_GRID_X)
+        tile[0][local_i] = phi[j_up * N_GRID_X + global_i];
+    if (threadIdx.y == TILE_Y - 1 && global_i < N_GRID_X)
+        tile[TILE_Y + 1][local_i] = phi[j_down * N_GRID_X + global_i];
+
+    // Halo corners
+    if (threadIdx.x == 0 && threadIdx.y == 0)
+        tile[0][0] = phi[j_up * N_GRID_X + i_left];
+    if (threadIdx.x == TILE_X - 1 && threadIdx.y == 0)
+        tile[0][TILE_X + 1] = phi[j_up * N_GRID_X + i_right];
+    if (threadIdx.x == 0 && threadIdx.y == TILE_Y - 1)
+        tile[TILE_Y + 1][0] = phi[j_down * N_GRID_X + i_left];
+    if (threadIdx.x == TILE_X - 1 && threadIdx.y == TILE_Y - 1)
+        tile[TILE_Y + 1][TILE_X + 1] = phi[j_down * N_GRID_X + i_right];
+
+    __syncthreads();
+
+    // Compute Ex and Ey using shared memory stencil
+    if (global_i < N_GRID_X && global_j < N_GRID_Y) {
+        int idx = global_j * N_GRID_X + global_i;
+
+        float dphidx = (tile[local_j][local_i + 1] - tile[local_j][local_i - 1]) / (2.0f * dx);
+        float dphidy = (tile[local_j + 1][local_i] - tile[local_j - 1][local_i]) / (2.0f * dy);
+
+        Ex[idx] = -dphidx;
+        Ey[idx] = -dphidy;
+    }
+}
+*/
+
+__global__ void compute_electric_field_kernel_periodic_tiled(
+    const float *phi, float *Ex, float *Ey,
+    int N_GRID_X, int N_GRID_Y, float dx, float dy)
+{
+    __shared__ float tile[TILE_Y + 2][TILE_X + 2];
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int global_i = blockIdx.x * TILE_X + tx;
+    int global_j = blockIdx.y * TILE_Y + ty;
+
+    int local_i = tx + 1; // +1 for halo
+    int local_j = ty + 1;
+
+    // Compute periodic indices for neighbors
+    int i_center = (global_i + N_GRID_X) % N_GRID_X;
+    int i_left   = (global_i - 1 + N_GRID_X) % N_GRID_X;
+    int i_right  = (global_i + 1) % N_GRID_X;
+
+    int j_center = (global_j + N_GRID_Y) % N_GRID_Y;
+    int j_up     = (global_j - 1 + N_GRID_Y) % N_GRID_Y;
+    int j_down   = (global_j + 1) % N_GRID_Y;
+
+    // Load center value
+    tile[local_j][local_i] = phi[j_center * N_GRID_X + i_center];
+
+    // Load halo columns
+    if (tx == 0)
+        tile[local_j][0] = phi[j_center * N_GRID_X + i_left];
+    if (tx == TILE_X - 1)
+        tile[local_j][TILE_X + 1] = phi[j_center * N_GRID_X + i_right];
+
+    // Load halo rows
+    if (ty == 0)
+        tile[0][local_i] = phi[j_up * N_GRID_X + i_center];
+    if (ty == TILE_Y - 1)
+        tile[TILE_Y + 1][local_i] = phi[j_down * N_GRID_X + i_center];
+
+    // Load corners
+    if (tx == 0 && ty == 0)
+        tile[0][0] = phi[j_up * N_GRID_X + i_left];
+    if (tx == TILE_X - 1 && ty == 0)
+        tile[0][TILE_X + 1] = phi[j_up * N_GRID_X + i_right];
+    if (tx == 0 && ty == TILE_Y - 1)
+        tile[TILE_Y + 1][0] = phi[j_down * N_GRID_X + i_left];
+    if (tx == TILE_X - 1 && ty == TILE_Y - 1)
+        tile[TILE_Y + 1][TILE_X + 1] = phi[j_down * N_GRID_X + i_right];
+
+    __syncthreads();
+
+    // Only compute if within grid bounds
+    if (global_i < N_GRID_X && global_j < N_GRID_Y) {
+        int idx = global_j * N_GRID_X + global_i;
+
+        float dphidx = (tile[local_j][local_i + 1] - tile[local_j][local_i - 1]) / (2.0f * dx);
+        float dphidy = (tile[local_j + 1][local_i] - tile[local_j - 1][local_i]) / (2.0f * dy);
+
+        Ex[idx] = -dphidx;
+        Ey[idx] = -dphidy;
+    }
+}
+
 void solve_poisson_jacobi(FieldContainer& fc) {
     int size = N_GRID_X * N_GRID_Y;
     size_t bytes = size * sizeof(float);
@@ -200,7 +324,10 @@ void solve_poisson_jacobi(FieldContainer& fc) {
     }
 
     // Compute electric field from potential
-    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
+    //if(Tiling)
+    //    compute_electric_field_kernel_periodic_tiled<<<gridDim2d, blockDim2d>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
+    //else
+        compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
 
     // Cleanup
     cudaFree(phi_old);
