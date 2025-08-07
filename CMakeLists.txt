@@ -3,7 +3,7 @@ project(vlasov_poisson LANGUAGES CXX CUDA)
 
 # Default to Debug if not specified
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")

@@ -249,28 +249,28 @@ __global__ void compute_electric_field_kernel_periodic_tiled(
     // Compute periodic indices for neighbors
     int i_center = (global_i + N_GRID_X) % N_GRID_X;
     int i_left   = (global_i - 1 + N_GRID_X) % N_GRID_X;
-    int i_right  = (global_i + 1) % N_GRID_X;
+    int i_right  = (global_i + 1 + N_GRID_X) % N_GRID_X;
 
     int j_center = (global_j + N_GRID_Y) % N_GRID_Y;
     int j_up     = (global_j - 1 + N_GRID_Y) % N_GRID_Y;
-    int j_down   = (global_j + 1) % N_GRID_Y;
+    int j_down   = (global_j + 1 + N_GRID_Y) % N_GRID_Y;
 
     // Load center value
     tile[local_j][local_i] = phi[j_center * N_GRID_X + i_center];
 
     // Load halo columns
-    if (tx == 0)
+    if (tx < TILE_X && global_j < N_GRID_Y) {
         tile[local_j][0] = phi[j_center * N_GRID_X + i_left];
-    if (tx == TILE_X - 1)
         tile[local_j][TILE_X + 1] = phi[j_center * N_GRID_X + i_right];
+    }
 
     // Load halo rows
-    if (ty == 0)
+    if (ty < TILE_Y && global_i < N_GRID_X) {
         tile[0][local_i] = phi[j_up * N_GRID_X + i_center];
-    if (ty == TILE_Y - 1)
         tile[TILE_Y + 1][local_i] = phi[j_down * N_GRID_X + i_center];
+    }
 
-    // Load corners
+    // Load halo corners (1 thread per corner, using offset threads)
     if (tx == 0 && ty == 0)
         tile[0][0] = phi[j_up * N_GRID_X + i_left];
     if (tx == TILE_X - 1 && ty == 0)
@@ -324,9 +324,9 @@ void solve_poisson_jacobi(FieldContainer& fc) {
     }
 
     // Compute electric field from potential
-    //if(Tiling)
-    //    compute_electric_field_kernel_periodic_tiled<<<gridDim2d, blockDim2d>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
-    //else
+    if(Tiling)
+        compute_electric_field_kernel_periodic_tiled<<<gridDim2d, blockDim2d>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
+    else
         compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
 
     // Cleanup
