@@ -14,6 +14,7 @@ Sorting::Sorting(ParticleContainer& pc_, FieldContainer& fc_)
 {
     d_cell_indices.resize(n_particles);
     d_particle_indices.resize(n_particles);
+    temp_buffer.resize(n_particles);
 }
 
 void Sorting::sort_particles_by_cell() {
@@ -41,29 +42,18 @@ void Sorting::sort_particles_by_cell() {
 }
 
 void Sorting::reorder_particle_data() {
-    thrust::device_ptr<float> x_ptr(pc->d_x);
-    thrust::device_ptr<float> y_ptr(pc->d_y);
-    thrust::device_ptr<float> vx_ptr(pc->d_vx);
-    thrust::device_ptr<float> vy_ptr(pc->d_vy);
-    thrust::device_ptr<float> w_ptr(pc->d_w);
 
-    thrust::device_vector<float> x_sorted(n_particles);
-    thrust::device_vector<float> y_sorted(n_particles);
-    thrust::device_vector<float> vx_sorted(n_particles);
-    thrust::device_vector<float> vy_sorted(n_particles);
-    thrust::device_vector<float> w_sorted(n_particles);
+    auto gather_and_copy = [&](float* src_ptr) {
+        thrust::device_ptr<float> src(src_ptr);
+        thrust::gather(d_particle_indices.begin(), d_particle_indices.end(), src, temp_buffer.begin());
+        thrust::copy(temp_buffer.begin(), temp_buffer.end(), src);
+    };
 
-    thrust::gather(d_particle_indices.begin(), d_particle_indices.end(), x_ptr, x_sorted.begin());
-    thrust::gather(d_particle_indices.begin(), d_particle_indices.end(), y_ptr, y_sorted.begin());
-    thrust::gather(d_particle_indices.begin(), d_particle_indices.end(), vx_ptr, vx_sorted.begin());
-    thrust::gather(d_particle_indices.begin(), d_particle_indices.end(), vy_ptr, vy_sorted.begin());
-    thrust::gather(d_particle_indices.begin(), d_particle_indices.end(), w_ptr, w_sorted.begin());
-
-    thrust::copy(x_sorted.begin(), x_sorted.end(), x_ptr);
-    thrust::copy(y_sorted.begin(), y_sorted.end(), y_ptr);
-    thrust::copy(vx_sorted.begin(), vx_sorted.end(), vx_ptr);
-    thrust::copy(vy_sorted.begin(), vy_sorted.end(), vy_ptr);
-    thrust::copy(w_sorted.begin(), w_sorted.end(), w_ptr);
+    gather_and_copy(pc->d_x);
+    gather_and_copy(pc->d_y);
+    gather_and_copy(pc->d_vx);
+    gather_and_copy(pc->d_vy);
+    gather_and_copy(pc->d_w);
 }
 
 __global__ void compute_cell_indices(

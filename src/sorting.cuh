@@ -17,6 +17,7 @@ private:
 
     thrust::device_vector<int> d_cell_indices;
     thrust::device_vector<int> d_particle_indices;
+    thrust::device_vector<float> temp_buffer;
 
 public:
     Sorting(ParticleContainer& pc_, FieldContainer& fc_);
