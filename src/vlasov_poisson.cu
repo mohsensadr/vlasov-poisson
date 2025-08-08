@@ -139,14 +139,13 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // recompute moments given weights, mainly for VR estimate
+    sorting.sort_particles_by_cell();
     compute_moments(pc, fc);
     cudaDeviceSynchronize();
 
     // write out initial fields
     post_proc(fc, 0);
     cudaDeviceSynchronize();
-
-    sorting.sort_particles_by_cell();
 
     for (int step = 1; step < NSteps+1; ++step) {
         // compute Electric field
@@ -173,6 +172,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
         cudaDeviceSynchronize();
 
         // update moments
+        sorting.sort_particles_by_cell();
         compute_moments(pc, fc);
         cudaDeviceSynchronize();
 
