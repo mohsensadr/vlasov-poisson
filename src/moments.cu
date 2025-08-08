@@ -4,46 +4,58 @@
 #include <thrust/reduce.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
+#include <thrust/iterator/constant_iterator.h>
 #include "moments.cuh"
 #include "sorting.cuh"
 
-void compute_density(Sorting& sorter) {
-    int n_particles = sorter.n_particles;
-    int grid_size = sorter.nx*sorter.ny;  // nx * ny
+// Scatter — write counts into the correct cells
+struct ScatterCounts {
+    int* unique_ids_ptr;
+    int* counts_ptr;
+    float* d_field_ptr;
 
-    // Input keys (cell index per particle)
+    __device__ void operator()(int idx) const {
+        int cell  = unique_ids_ptr[idx];
+        int count = counts_ptr[idx];
+        d_field_ptr[cell] = static_cast<float>(count);
+    }
+};
+
+void compute_density(Sorting& sorter) {
+    int grid_size   = sorter.nx * sorter.ny;
+
+    //d_cell_indices: for each particle it stores the cell ID (computed earlier by your sorting step).
     const thrust::device_vector<int>& d_cell_indices = sorter.d_cell_indices;
 
-    // Prepare temporary keys and counts
     thrust::device_vector<int> unique_cell_ids(grid_size);
     thrust::device_vector<int> counts(grid_size);
 
-    // Constant values of 1 (each particle contributes 1 to its cell)
-    thrust::device_vector<int> ones(n_particles, 1);
+    auto ones_begin = thrust::make_constant_iterator(1);
 
-    // Compute histogram: number of particles per cell
     auto new_end = thrust::reduce_by_key(
-        d_cell_indices.begin(), d_cell_indices.end(), // keys: cell indices
-        ones.begin(),                                 // values: 1 per particle
-        unique_cell_ids.begin(),                      // output keys
-        counts.begin()                                // output counts
+        d_cell_indices.begin(), d_cell_indices.end(),  // sequence of keys: cell IDs
+        ones_begin,                                    // sequence of values: each particle counts as 1
+        unique_cell_ids.begin(),                       // output: unique cell IDs (sorted)
+        counts.begin()                                 // output: counts per unique cell
     );
 
+    // number of occupied cells in this step (some cells may have 0 particles)
     int n_unique_cells = new_end.first - unique_cell_ids.begin();
 
-    // Zero out the field density grid first
+    // clear the density grid
     thrust::device_ptr<float> d_N_ptr(sorter.fc->d_N);
     thrust::fill(d_N_ptr, d_N_ptr + grid_size, 0.0f);
 
-    // Scatter counts into d_N (convert int count to float)
+    ScatterCounts scatter {
+        thrust::raw_pointer_cast(unique_cell_ids.data()),
+        thrust::raw_pointer_cast(counts.data()),
+        sorter.fc->d_N
+    };
+
     thrust::for_each(
-        thrust::make_zip_iterator(thrust::make_tuple(unique_cell_ids.begin(), counts.begin())),
-        thrust::make_zip_iterator(thrust::make_tuple(unique_cell_ids.begin() + n_unique_cells, counts.begin() + n_unique_cells)),
-        [d_N_ptr] __device__ (thrust::tuple<int, int> t) {
-            int cell = thrust::get<0>(t);
-            int count = thrust::get<1>(t);
-            d_N_ptr[cell] = static_cast<float>(count);
-        }
+        thrust::counting_iterator<int>(0),
+        thrust::counting_iterator<int>(n_unique_cells),
+        scatter
     );
 }
 
@@ -606,12 +618,11 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter)
         1  // You can parallelize over z if needed
     );
 
-    compute_density(sorter);
-
     //if(Tiling)
     //  deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     //else
     //  deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    compute_density(sorter);
     cudaDeviceSynchronize();
 
     // compute bulk velocity (MC)
