@@ -3,7 +3,7 @@ project(vlasov_poisson LANGUAGES CXX CUDA)
 
 # Default to Debug if not specified
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
@@ -34,6 +34,7 @@ set(SOURCES
     ${SRC_DIR}/solver.cu
     ${SRC_DIR}/moments.cu
     ${SRC_DIR}/vlasov_poisson.cu
+    ${SRC_DIR}/sorting.cu
     ${SRC_DIR}/IO.cpp
 )
 

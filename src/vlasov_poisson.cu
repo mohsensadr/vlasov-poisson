@@ -12,6 +12,7 @@
 #include "particle_container.cuh"
 #include "field_container.cuh"
 #include "pdfs.cuh"
+#include "sorting.cuh"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -99,12 +100,14 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
 
+    // TODO: dx, dy, Lx, Ly are member variables of field container, remove them here.
     dx = Lx/N_GRID_X;
     dy = Ly/N_GRID_Y;
     grid_size = N_GRID_X*N_GRID_Y;
 
     ParticleContainer pc(N_PARTICLES);
-    FieldContainer fc(N_GRID_X, N_GRID_Y);
+    FieldContainer fc(N_GRID_X, N_GRID_Y, Lx, Ly);
+    Sorting sorting(pc, fc);
 
     // Create the appropriate PDF struct for device use
     PDF_position pdf_position;
@@ -142,6 +145,8 @@ void run(const std::string& pdf_type, float* pdf_params) {
     // write out initial fields
     post_proc(fc, 0);
     cudaDeviceSynchronize();
+
+    sorting.sort_particles_by_cell();
 
     for (int step = 1; step < NSteps+1; ++step) {
         // compute Electric field
