@@ -1,7 +1,51 @@
 #include "constants.hpp"
 #include <iostream>
 #include <fstream>
+#include <thrust/reduce.h>
+#include <thrust/device_vector.h>
+#include <thrust/fill.h>
 #include "moments.cuh"
+#include "sorting.cuh"
+
+void compute_density(Sorting& sorter) {
+    int n_particles = sorter.n_particles;
+    int grid_size = sorter.nx*sorter.ny;  // nx * ny
+
+    // Input keys (cell index per particle)
+    const thrust::device_vector<int>& d_cell_indices = sorter.d_cell_indices;
+
+    // Prepare temporary keys and counts
+    thrust::device_vector<int> unique_cell_ids(grid_size);
+    thrust::device_vector<int> counts(grid_size);
+
+    // Constant values of 1 (each particle contributes 1 to its cell)
+    thrust::device_vector<int> ones(n_particles, 1);
+
+    // Compute histogram: number of particles per cell
+    auto new_end = thrust::reduce_by_key(
+        d_cell_indices.begin(), d_cell_indices.end(), // keys: cell indices
+        ones.begin(),                                 // values: 1 per particle
+        unique_cell_ids.begin(),                      // output keys
+        counts.begin()                                // output counts
+    );
+
+    int n_unique_cells = new_end.first - unique_cell_ids.begin();
+
+    // Zero out the field density grid first
+    thrust::device_ptr<float> d_N_ptr(sorter.fc->d_N);
+    thrust::fill(d_N_ptr, d_N_ptr + grid_size, 0.0f);
+
+    // Scatter counts into d_N (convert int count to float)
+    thrust::for_each(
+        thrust::make_zip_iterator(thrust::make_tuple(unique_cell_ids.begin(), counts.begin())),
+        thrust::make_zip_iterator(thrust::make_tuple(unique_cell_ids.begin() + n_unique_cells, counts.begin() + n_unique_cells)),
+        [d_N_ptr] __device__ (thrust::tuple<int, int> t) {
+            int cell = thrust::get<0>(t);
+            int count = thrust::get<1>(t);
+            d_N_ptr[cell] = static_cast<float>(count);
+        }
+    );
+}
 
 __global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
             int N_GRID_X, int N_GRID_Y,
@@ -547,7 +591,7 @@ __global__ void deposit_temperature_2d_VR_tiled(
     }
 }
 
-void compute_moments(ParticleContainer& pc, FieldContainer& fc){
+void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter){
     int n_particles = N_PARTICLES;
 
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
@@ -562,10 +606,12 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc){
         1  // You can parallelize over z if needed
     );
 
-    if(Tiling)
-      deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    else
-      deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    compute_density(sorter);
+
+    //if(Tiling)
+    //  deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //else
+    //  deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
     cudaDeviceSynchronize();
 
     // compute bulk velocity (MC)

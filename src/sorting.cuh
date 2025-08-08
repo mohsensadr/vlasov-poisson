@@ -6,7 +6,7 @@
 #include "field_container.cuh"
 
 class Sorting {
-private:
+public:
     ParticleContainer* pc;
     FieldContainer* fc;
 

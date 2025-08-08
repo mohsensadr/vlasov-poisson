@@ -107,7 +107,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
 
     ParticleContainer pc(N_PARTICLES);
     FieldContainer fc(N_GRID_X, N_GRID_Y, Lx, Ly);
-    Sorting sorting(pc, fc);
+    Sorting sorter(pc, fc);
 
     // Create the appropriate PDF struct for device use
     PDF_position pdf_position;
@@ -129,7 +129,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // compute moments, needed to find emperical density field
-    compute_moments(pc, fc);
+    compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 
     // set particle weights given estimted and exact fields
@@ -139,8 +139,8 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // recompute moments given weights, mainly for VR estimate
-    sorting.sort_particles_by_cell();
-    compute_moments(pc, fc);
+    sorter.sort_particles_by_cell();
+    compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 
     // write out initial fields
@@ -172,8 +172,8 @@ void run(const std::string& pdf_type, float* pdf_params) {
         cudaDeviceSynchronize();
 
         // update moments
-        sorting.sort_particles_by_cell();
-        compute_moments(pc, fc);
+        sorter.sort_particles_by_cell();
+        compute_moments(pc, fc, sorter);
         cudaDeviceSynchronize();
 
         // print output

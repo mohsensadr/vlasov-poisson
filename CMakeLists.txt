@@ -55,6 +55,11 @@ target_include_directories(main PRIVATE
 # Optional: Make sure we're linking statically to cudart
 # target_link_libraries(main PRIVATE cudart_static)
 
+# Enable CUDA extended lambdas (for device lambdas in thrust::for_each)
+target_compile_options(main PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>
+)
+
 # Optional: output directory
 set_target_properties(main PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
