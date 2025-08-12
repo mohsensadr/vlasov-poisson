@@ -1,63 +1,35 @@
 #include "constants.hpp"
 #include <iostream>
 #include <fstream>
-#include <thrust/reduce.h>
-#include <thrust/device_vector.h>
-#include <thrust/fill.h>
-#include <thrust/iterator/constant_iterator.h>
+#include <cuda_runtime.h>
 #include "moments.cuh"
 #include "sorting.cuh"
 
-// Scatter — write counts into the correct cells
-struct ScatterCounts {
-    int* unique_ids_ptr;
-    int* counts_ptr;
-    float* d_field_ptr;
-
-    __device__ void operator()(int idx) const {
-        int cell  = unique_ids_ptr[idx];
-        int count = counts_ptr[idx];
-        d_field_ptr[cell] = static_cast<float>(count);
-    }
-};
-
-void compute_density(Sorting& sorter) {
-    int grid_size   = sorter.nx * sorter.ny;
-
-    //d_cell_indices: for each particle it stores the cell ID (computed earlier by your sorting step).
-    const thrust::device_vector<int>& d_cell_indices = sorter.d_cell_indices;
-
-    thrust::device_vector<int> unique_cell_ids(grid_size);
-    thrust::device_vector<int> counts(grid_size);
-
-    auto ones_begin = thrust::make_constant_iterator(1);
-
-    auto new_end = thrust::reduce_by_key(
-        d_cell_indices.begin(), d_cell_indices.end(),  // sequence of keys: cell IDs
-        ones_begin,                                    // sequence of values: each particle counts as 1
-        unique_cell_ids.begin(),                       // output: unique cell IDs (sorted)
-        counts.begin()                                 // output: counts per unique cell
-    );
-
-    // number of occupied cells in this step (some cells may have 0 particles)
-    int n_unique_cells = new_end.first - unique_cell_ids.begin();
-
-    // clear the density grid
-    thrust::device_ptr<float> d_N_ptr(sorter.fc->d_N);
-    thrust::fill(d_N_ptr, d_N_ptr + grid_size, 0.0f);
-
-    ScatterCounts scatter {
-        thrust::raw_pointer_cast(unique_cell_ids.data()),
-        thrust::raw_pointer_cast(counts.data()),
-        sorter.fc->d_N
-    };
-
-    thrust::for_each(
-        thrust::counting_iterator<int>(0),
-        thrust::counting_iterator<int>(n_unique_cells),
-        scatter
-    );
+__global__ void copy_counts_to_density(
+    const int* __restrict__ cell_counts,
+    float* __restrict__ density,
+    int num_cells
+) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= num_cells) return;
+    density[i] = static_cast<float>(cell_counts[i]);
 }
+
+void compute_density(Sorting& sorter, cudaStream_t stream = 0) {
+    int num_cells = sorter.nx * sorter.ny;
+
+    // cell_counts was already computed in sort_particles_and_compute_density()
+    // so we just copy it into the density field.
+    copy_counts_to_density<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
+        sorter.d_cell_counts,
+        sorter.fc->d_N,
+        num_cells
+    );
+
+    // optional: sync if you need immediate access to density
+    cudaStreamSynchronize(stream);
+}
+
 
 __global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
             int N_GRID_X, int N_GRID_Y,

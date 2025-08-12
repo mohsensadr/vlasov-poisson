@@ -28,7 +28,7 @@ public:
     float *d_vy_sorted = nullptr;
     float *d_w_sorted = nullptr;
 
-    Sorting(ParticleContainer& pc_, FieldContainer* fc_);
+    Sorting(ParticleContainer& pc_, FieldContainer& fc_);
     ~Sorting();
 
     // compute cell indices, build histogram, sort particles

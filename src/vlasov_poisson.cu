@@ -129,6 +129,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // compute moments, needed to find emperical density field
+    sorter.sort_particles_by_cell();
     compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 

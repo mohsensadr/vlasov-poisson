@@ -59,8 +59,8 @@ __global__ void scatter_particles_kernel(
 // Sorting ctor/dtor + helper
 // ---------------------------------------------------------------------------
 
-Sorting::Sorting(ParticleContainer& pc_, FieldContainer* fc_)
-    : pc(&pc_), fc(fc_)
+Sorting::Sorting(ParticleContainer& pc_, FieldContainer& fc_)
+    : pc(&pc_), fc(&fc_)
 {
     n_particles = pc_.n_particles;
     nx = fc->nx;
@@ -111,7 +111,6 @@ void Sorting::sort_particles_by_cell(cudaStream_t stream) {
     const int TPB = 256;
     int blocks_p = (n_particles + TPB - 1) / TPB;
     int num_cells = nx * ny;
-    int blocks_c = (num_cells + TPB - 1) / TPB;
 
     // 1) compute cell indices
     compute_cell_indices_kernel<<<blocks_p, TPB, 0, stream>>>(
