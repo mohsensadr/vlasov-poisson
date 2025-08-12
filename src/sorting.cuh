@@ -1,7 +1,7 @@
 // sorting.cuh
 #pragma once
 
-#include <thrust/device_vector.h>
+#include <cuda_runtime.h>
 #include "particle_container.cuh"
 #include "field_container.cuh"
 
@@ -11,30 +11,31 @@ public:
     FieldContainer* fc;
 
     int nx, ny;
+    int n_particles;
     float xmin, ymin;
     float dx, dy;
-    int n_particles;
 
-    thrust::device_vector<int> d_cell_indices;
-    thrust::device_vector<int> d_particle_indices;
-    thrust::device_vector<float> temp_buffer;
+    // device buffers
+    int *d_cell_idx = nullptr;      // per-particle cell index (n_particles)
+    int *d_cell_counts = nullptr;   // per-cell counts (nx*ny)
+    int *d_cell_offsets = nullptr;  // per-cell exclusive prefix sum offsets (nx*ny)
+    int *d_cell_counters = nullptr; // temp per-cell counters for scatter (nx*ny)
 
-public:
-    Sorting(ParticleContainer& pc_, FieldContainer& fc_);
+    // temporary sorted arrays
+    float *d_x_sorted = nullptr;
+    float *d_y_sorted = nullptr;
+    float *d_vx_sorted = nullptr;
+    float *d_vy_sorted = nullptr;
+    float *d_w_sorted = nullptr;
 
-    void sort_particles_by_cell();
+    Sorting(ParticleContainer& pc_, FieldContainer* fc_);
+    ~Sorting();
+
+    // compute cell indices, build histogram, sort particles
+    void sort_particles_by_cell(cudaStream_t stream = 0);
 
 private:
-    void reorder_particle_data();
-
+    // disable copy
+    Sorting(const Sorting&) = delete;
+    Sorting& operator=(const Sorting&) = delete;
 };
-
-// Kernel declaration
-__global__ void compute_cell_indices(
-    float* d_x, float* d_y,
-    int* d_cell_indices,
-    int n,
-    int nx, int ny,
-    float xmin, float ymin,
-    float dx, float dy
-);
