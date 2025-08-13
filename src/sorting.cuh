@@ -16,10 +16,10 @@ public:
     float dx, dy;
 
     // device buffers
-    int *d_cell_idx = nullptr;      // per-particle cell index (n_particles)
-    int *d_cell_counts = nullptr;   // per-cell counts (nx*ny)
-    int *d_cell_offsets = nullptr;  // per-cell exclusive prefix sum offsets (nx*ny)
-    int *d_cell_counters = nullptr; // temp per-cell counters for scatter (nx*ny)
+    int *d_cell_idx = nullptr;           // per-particle cell index (n_particles)
+    int *d_cell_counts = nullptr;        // per-cell counts (nx*ny)
+    int *d_cell_offsets = nullptr;       // per-cell exclusive prefix sum offsets (nx*ny+1)
+    int *d_cell_counters = nullptr;      // temp per-cell counters for scatter (nx*ny)
 
     // temporary sorted arrays
     float *d_x_sorted = nullptr;

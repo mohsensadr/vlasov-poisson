@@ -79,7 +79,7 @@ Sorting::Sorting(ParticleContainer& pc_, FieldContainer& fc_)
     // allocate per-particle and per-cell arrays
     cudaMalloc(&d_cell_idx,    np * sizeof(int));
     cudaMalloc(&d_cell_counts, nc * sizeof(int));
-    cudaMalloc(&d_cell_offsets,nc * sizeof(int));
+    cudaMalloc(&d_cell_offsets, (nc+1) * sizeof(int));
     cudaMalloc(&d_cell_counters,nc * sizeof(int));
 
     // allocate sorted arrays (same size as particle arrays)
@@ -142,6 +142,8 @@ void Sorting::sort_particles_by_cell(cudaStream_t stream) {
     // run scan
     cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_cell_counts, d_cell_offsets, num_cells);
     cudaFree(d_temp_storage);
+
+    cudaMemcpy(d_cell_offsets + num_cells, &n_particles, sizeof(int), cudaMemcpyHostToDevice);
 
     // 5) zero cell_counters (for atomicAdd positions)
     cudaMemsetAsync(d_cell_counters, 0, num_cells * sizeof(int), stream);

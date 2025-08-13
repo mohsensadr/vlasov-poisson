@@ -101,6 +101,41 @@ __global__ void deposit_density_2d_tiled(
     }
 }
 
+__global__ void deposit_velocity_2d_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const int* __restrict__ d_cell_offsets,
+    float* __restrict__ Ux,
+    float* __restrict__ Uy,
+    int num_cells
+) {
+    int cell = blockIdx.x * blockDim.x + threadIdx.x;
+    if (cell >= num_cells) return;
+
+    // Get start and end index for this cell
+    int start = d_cell_offsets[cell];
+    int end   = d_cell_offsets[cell + 1];
+
+    float sum_vx = 0.0f;
+    float sum_vy = 0.0f;
+    int count = end - start;
+
+    // Sum over particles in this cell
+    for (int i = start; i < end; i++) {
+        sum_vx += vx[i];
+        sum_vy += vy[i];
+    }
+
+    // Store average velocity (avoid division by zero)
+    if (count > 0) {
+        Ux[cell] = sum_vx / count;
+        Uy[cell] = sum_vy / count;
+    } else {
+        Ux[cell] = 0.0f;
+        Uy[cell] = 0.0f;
+    }
+}
+
 __global__ void deposit_velocity_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, int n_particles,
             int N_GRID_X, int N_GRID_Y,
             float Lx, float Ly
@@ -195,6 +230,37 @@ __global__ void deposit_velocity_2d_tiled(
         atomicAdd(&Uy[idx], tile_Uy[threadIdx.y][threadIdx.x]);
     }
 }
+
+// T = ( <(vx-Ux)^2 + (vy-Uy)^2> ) / (2 * kb/m)
+__global__ void deposit_temperature_2d_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const int*   __restrict__ d_cell_offsets, // size: num_cells + 1
+    const float* __restrict__ Ux,
+    const float* __restrict__ Uy,
+    float* T,
+    int num_cells
+) {
+    int cell = blockIdx.x * blockDim.x + threadIdx.x;
+    if (cell >= num_cells) return;
+
+    int start = d_cell_offsets[cell];
+    int end   = d_cell_offsets[cell + 1]; // exclusive
+
+    float ux = Ux[cell];
+    float uy = Uy[cell];
+    float temp_sum = 0.0f;
+    int npart = end - start;
+
+    for (int i = start; i < end; ++i) {
+        float dvx = vx[i] - ux;
+        float dvy = vy[i] - uy;
+        temp_sum += dvx * dvx + dvy * dvy;
+    }
+
+    T[cell] = (npart > 0) ? temp_sum / (2.0f * kb/m * npart) : 0.0f;
+}
+
 
 __global__ void deposit_temperature_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, float *T, int n_particles,
             int N_GRID_X, int N_GRID_Y,
@@ -577,6 +643,7 @@ __global__ void deposit_temperature_2d_VR_tiled(
 
 void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter){
     int n_particles = N_PARTICLES;
+    int num_cells = fc.nx * fc.ny;
 
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
@@ -598,17 +665,19 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter)
     cudaDeviceSynchronize();
 
     // compute bulk velocity (MC)
-    if(Tiling)
-      deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    else
-      deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //if(Tiling)
+    //  deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //else
+    //  deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, num_cells);
     cudaDeviceSynchronize();
 
     // compute bulk temperature (MC)
-    if(Tiling)
-      deposit_temperature_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    else
-      deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //if(Tiling)
+    //  deposit_temperature_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //else
+    //  deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, fc.d_T, num_cells);
     cudaDeviceSynchronize();
 
     // compute density (VR)
