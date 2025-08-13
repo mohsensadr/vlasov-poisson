@@ -261,7 +261,6 @@ __global__ void deposit_temperature_2d_sorted(
     T[cell] = (npart > 0) ? temp_sum / (2.0f * kb/m * npart) : 0.0f;
 }
 
-
 __global__ void deposit_temperature_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, float *T, int n_particles,
             int N_GRID_X, int N_GRID_Y,
             float Lx, float Ly
@@ -354,6 +353,30 @@ __global__ void deposit_temperature_2d_tiled(
     }
 }
 
+__global__ void deposit_density_2d_VR_sorted(
+    const float* __restrict__ w,          // particle weights
+    const int*   __restrict__ d_cell_offsets, // per-cell start indices (size num_cells+1)
+    float* NVR,                           // output: variance-reduced density
+    int num_cells,
+    int n_particles
+) {
+    int cell = blockIdx.x * blockDim.x + threadIdx.x;
+    if (cell >= num_cells) return;
+
+    int start = d_cell_offsets[cell];
+    int end   = d_cell_offsets[cell + 1]; // exclusive
+    int npart = end - start;
+
+    float Navg = float(n_particles) / float(num_cells);
+    float sum = 0.0f;
+
+    for (int i = start; i < end; ++i) {
+        sum += 1.0f - w[i];
+    }
+
+    NVR[cell] = (npart > 0) ? Navg + sum : Navg;
+}
+
 __global__ void deposit_density_2d_VR(float *x, float *y, float *w, float *N, float *NVR, int n_particles,
             int N_GRID_X, int N_GRID_Y,
             float Lx, float Ly
@@ -437,6 +460,42 @@ __global__ void deposit_density_2d_VR_tiled(
         gx < N_GRID_X && gy < N_GRID_Y) {
         int idx = gx + gy * N_GRID_X;
         atomicAdd(&NVR[idx], tile_NVR[threadIdx.y][threadIdx.x]);
+    }
+}
+
+__global__ void deposit_velocity_2d_VR_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const float* __restrict__ w,
+    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
+    const float* __restrict__ NVR,            // number of particles per cell / density
+    float* UxVR,                              // output: x-velocity per cell
+    float* UyVR,                              // output: y-velocity per cell
+    int num_cells
+) {
+    int cell = blockIdx.x * blockDim.x + threadIdx.x;
+    if (cell >= num_cells) return;
+
+    int start = d_cell_offsets[cell];
+    int end   = d_cell_offsets[cell + 1]; // exclusive
+    int npart = end - start;
+
+    float sum_vx = 0.0f;
+    float sum_vy = 0.0f;
+
+    for (int i = start; i < end; ++i) {
+        float factor = 1.0f - w[i];
+        sum_vx += vx[i] * factor;
+        sum_vy += vy[i] * factor;
+    }
+
+    // Avoid division by zero
+    if (npart > 0) {
+        UxVR[cell] = sum_vx / NVR[cell];
+        UyVR[cell] = sum_vy / NVR[cell];
+    } else {
+        UxVR[cell] = 0.0f;
+        UyVR[cell] = 0.0f;
     }
 }
 
@@ -535,6 +594,50 @@ __global__ void deposit_velocity_2d_VR_tiled(
         atomicAdd(&UxVR[idx], tile_UxVR[threadIdx.y][threadIdx.x]);
         atomicAdd(&UyVR[idx], tile_UyVR[threadIdx.y][threadIdx.x]);
     }
+}
+
+__global__ void deposit_temperature_2d_VR_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const float* __restrict__ w,
+    const float* __restrict__ UxVR,
+    const float* __restrict__ UyVR,
+    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
+    const float* __restrict__ NVR,            // VR density
+    float* TVR,                               // output: VR temperature per cell
+    int num_cells
+) {
+    int cell = blockIdx.x * blockDim.x + threadIdx.x;
+    if (cell >= num_cells) return;
+
+    int start = d_cell_offsets[cell];
+    int end   = d_cell_offsets[cell + 1]; // exclusive
+    int npart = end - start;
+
+    float temp_sum = 0.0f;
+
+    // Navg for variance reduction
+    float Navg = 0.0f;
+    if (num_cells > 0) {
+        Navg = float(d_cell_offsets[num_cells]) / float(num_cells); // total_particles / num_cells
+    }
+
+    float energy;
+
+    for (int i = start; i < end; ++i) {
+        float dvx = vx[i] - UxVR[cell];
+        float dvy = vy[i] - UyVR[cell];
+        energy = (dvx*dvx + dvy*dvy) * 0.5f * (1.0f - w[i]);
+    }
+
+    temp_sum = energy / npart / NVR[cell] / (kb/m); // divide by VR density
+
+    // Add eq. term
+    if (npart > 0.0f) {
+        temp_sum += Navg/(kb/m)/NVR[cell];
+    }
+
+    TVR[cell] = temp_sum;
 }
 
 __global__ void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *vy, float *w, float *N, float *NVR, float *UxVR, float *UyVR, float *TVR, int n_particles,
@@ -681,24 +784,27 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter)
     cudaDeviceSynchronize();
 
     // compute density (VR)
-    if(Tiling)
-      deposit_density_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    else
-      deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //if(Tiling)
+    //  deposit_density_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //else
+    //  deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_w, sorter.d_cell_offsets, fc.d_NVR, num_cells, n_particles);
     cudaDeviceSynchronize();
 
     // compute velocity (VR)
-    if(Tiling)
-      deposit_velocity_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    else
-      deposit_velocity_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //if(Tiling)
+    //  deposit_velocity_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //else
+    //  deposit_velocity_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, sorter.d_cell_offsets, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, num_cells);
     cudaDeviceSynchronize();
 
     // compute temperature (VR)
-    if(Tiling)
-      deposit_temperature_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    else
-      deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //if(Tiling)
+    //  deposit_temperature_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    //else
+    //  deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, sorter.d_cell_offsets, fc.d_NVR, fc.d_TVR, num_cells);
     cudaDeviceSynchronize();
 }
 
