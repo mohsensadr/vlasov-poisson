@@ -1,232 +1,145 @@
-/*
-float mom(float u1, float u2, float U_1, float U_2, int n){
-  switch(n){
-    case 0:
-      return u1-U_1;
-    case 1:
-      return u2-U_2;
-    case 2:
-     return 0.5 * ( pow(u1-U_1,2)+pow(u2-U_2,2) );
-  }
-  return 0;
+#include "MxE.cuh"
+#include <math.h>
+#include <cuda_runtime.h>
+
+template<int Nm>
+__device__ void Gauss_Jordan(float H[Nm][Nm], float g[Nm], float x[Nm]) {
+    for (int i = 0; i < Nm; i++) {
+        float diag = H[i][i];
+        for (int j = i; j < Nm; j++) H[i][j] /= diag;
+        g[i] /= diag;
+
+        for (int k = 0; k < Nm; k++) {
+            if (k == i) continue;
+            float factor = H[k][i];
+            for (int j = i; j < Nm; j++) H[k][j] -= factor * H[i][j];
+            g[k] -= factor * g[i];
+        }
+    }
+
+    for (int i = 0; i < Nm; i++) x[i] = g[i];
 }
 
-__global__ void deposit_velocity_2d_sorted(
+template<int Nm>
+__device__ float mom(float u1, float u2, float U_1, float U_2, int n) {
+    switch(n) {
+        case 0: return u1 - U_1;
+        case 1: return u2 - U_2;
+        case 2: return 0.5f * ((u1 - U_1) * (u1 - U_1) + (u2 - U_2) * (u2 - U_2));
+    }
+    return 0.0f;
+}
+
+template<int Nm>
+__global__ void update_weights(
     const float* __restrict__ vx,
     const float* __restrict__ vy,
     const int* __restrict__ d_cell_offsets,
-    float* __restrict__ Ux,
-    float* __restrict__ Uy,
+    float* __restrict__ w,
+    float* __restrict__ wold,
+    float* __restrict__ UxVR,
+    float* __restrict__ UyVR,
     int num_cells
 ) {
     int cell = blockIdx.x * blockDim.x + threadIdx.x;
     if (cell >= num_cells) return;
 
-    float tol = 1e-5; // tolerance for gradient getting to zero
-    int Nm=3; // number of moments
-
-    // Get start and end index for this cell
+    float tol = 1e-5f;
     int start = d_cell_offsets[cell];
     int end   = d_cell_offsets[cell + 1];
     int Npc = end - start;
-    float p[Nm];// p: array of current moments
-    float pt[Nm];// p: array of target moments
 
-    // initialize target moments to zero
-    for(int i=0; i<Nm; i++){
-      p[i] = 0.0;
-      pt[i] = 0.0;
-    }
+    float p[Nm] = {0.0f};
+    float pt[Nm] = {0.0f};
+    float p0[Nm] = {0.0f};
+    p0[2] = 1.0f;
 
-    // compute pre-push moments as target
+    float sumwold = 0.0f;
+
     for (int i = start; i < end; i++) {
-      for(int j=0; j<Nm; j++){
-        p[j]  +=  (1.0-w[i])*mom(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
-        pt[j] +=  (1.0-wold[i])*mom(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
-      }
+        sumwold += wold[i];
+        for (int j = 0; j < Nm; j++) {
+            p[j] += mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+            pt[j] += (1.0f - wold[i]) * mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+        }
     }
 
-    for(int i=0; i<Nm; i++){
-      p[i]  = p[i]/Npc;
-      pt[i] = pt[i]/Npc;
+    for (int i = 0; i < Nm; i++) {
+        p[i] /= Npc;
+        pt[i] /= Npc;
+        pt[i] += p0[i];
+        p[i] = p0[i] + p[i] - pt[i];
     }
 
-    // add eq. moments
-    p[2] += 1.0;
-    pt[2] += 1.0;
+    for (int i = start; i < end; i++)
+        wold[i] = w[i];
 
-    // use new weights as prior in this setting
+    bool convergence = false;
+    int max_iter = 1000;
+    int iter = 0;
+    float g[Nm], H[Nm][Nm], xvec[Nm], lam[Nm] = {0.0f};
 
+    while (!convergence) {
+        iter++;
+        if (iter > max_iter) break;
+
+        // Compute gradient
+        float res = 0.0f;
+        for (int j = 0; j < Nm; j++) {
+            g[j] = 0.0f;
+            for (int i = start; i < end; i++)
+                g[j] += w[i] * mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+            g[j] = g[j]/Npc - p[j];
+            res += fabsf(g[j]);
+        }
+        if (res < tol) convergence = true;
+
+        // Compute Hessian
+        for (int i = 0; i < Nm; i++)
+            for (int j = 0; j < Nm; j++)
+                H[i][j] = 0.0f;
+
+        for (int k = 0; k < Nm; k++) {
+            for (int j = k; j < Nm; j++) {
+                float Ski = 0.0f, Sji = 0.0f, SkiSji = 0.0f;
+                for (int i = start; i < end; i++) {
+                    float mk = mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], k);
+                    float mj = mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+                    Ski += mk * w[i];
+                    Sji += mj * w[i];
+                    SkiSji += mk * mj * w[i];
+                }
+                H[k][j] = SkiSji/Npc - Ski/Npc*p[j] - Sji/Npc*p[k] + p[j]*p[k];
+            }
+        }
+
+        for (int k = 0; k < Nm; k++)
+            for (int j = 0; j < k; j++)
+                H[k][j] = H[j][k];
+
+        // Solve for Newton step
+        Gauss_Jordan<Nm>(H, g, xvec);
+
+        // Update weights
+        float sumW = 0.0f;
+        for (int j = 0; j < Nm; j++)
+            lam[j] -= xvec[j];
+
+        for (int i = start; i < end; i++) {
+            float dummy = 0.0f;
+            for (int j = 0; j < Nm; j++)
+                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j)-p[j]);
+            float dummy2 = expf(-dummy);
+            w[i] = wold[i] / dummy2;
+            sumW += w[i];
+        }
+
+        for (int i = start; i < end; i++)
+            w[i] *= sumwold/sumW;
+    }
 }
-*/
 
-/*
-int crossMED_match(double *U1,double *U2,double *U3, double *W, double *Wold, double *Wprior, struct GAS *gas, struct CELLS *cells,  struct BOX *box, int *index, int num, double Wthreshold, int *Ncol){
-  double tol=1e-10; // tolerance for gradient getting to zero
-  int Nm=18; // number of moments
-  int d1[Nm] = {1,0,0,1,0,1,2,0,0, 3,1,1, 2,0,0, 2,0,0};
-  int d2[Nm] = {0,1,0,1,1,0,0,2,0, 0,2,0, 1,3,1, 0,2,0};
-  int d3[Nm] = {0,0,1,0,1,1,0,0,2, 0,0,2, 0,0,2, 1,1,3};
-
-  double p[Nm];// p: array of moments
-  double g[Nm];// g: gradient of Newton-minimizor
-  double g_norm[Nm];
-  double lam[Nm];// lam: array of lagrange multipliers
-  double *x = (double *) malloc( Nm * sizeof(double) );// array for storing del(lam)
-  double **hess;// hess: Hessian of Newton-minimizor
-  hess=new double *[Nm];
-  for(int i=0;i<Nm;i++)
-      hess[i]=new double [Nm];
-
-  double av_st=0;
-  int max_st = 0, st=0;
-  double Ski, Sji,norm_grad,SkiSji;
-  double dummy;
-  int conv=0,i,j,k,ii;
-
-  double maxW, maxW2, sumW, sumW2, sumWold;
-
-    // set initial guess of lam
-    for(j=0; j<Nm; j++)
-      lam[j]=0.0;
-    // compute moments of weights
-    for(j=0; j<Nm; j++){
-      p[j]=0.0;
-      //peq[j]=0.0;
-    }
-    sumW = 0.0;
-    for(ii=0;ii<cells[num].num_inside;ii++){
-      i = cells[num].indices_inside[ii];
-      sumW +=  W[i];
-      for(j=0; j<Nm; j++){
-        p[j] += (pow(U1[i],d1[j]) * pow(U2[i],d2[j]) * pow(U3[i],d3[j])) * W[i];
-      }
-    }
-    for(j=0; j<Nm; j++){
-      p[j] = p[j]/ sumW;
-    }
-    for(j=0; j<Nm; j++)
-      g[j]=0.0;
-    sumW2 = 0.0;
-    for(ii=0;ii<cells[num].num_inside;ii++){
-      i = cells[num].indices_inside[ii];
-      sumW2 += Wprior[i];//W0;
-      for(j=0; j<Nm; j++){
-        g[j] += (pow(U1[i],d1[j]) * pow(U2[i],d2[j]) * pow(U3[i],d3[j])) *Wprior[i];//W0;// / (1.*cells[num].num_inside);
-      }
-    }
-    for(j=0; j<Nm; j++){
-        g[j] = g[j] / sumW2 - p[j];
-    }
-    for(j=0; j<Nm; j++){
-      g_norm[j] = g[j];
-      if(j>=3){
-        g_norm[j] = g_norm[j]/p[j];
-      }
-    }
-    norm_grad = norm1(g_norm,Nm);
-    if(norm_grad>tol){
-      sumWold = 0.0;
-      for(ii=0;ii<cells[num].num_inside;ii++){
-        i = cells[num].indices_inside[ii];
-        Wold[i] = W[i];
-        W[i] = Wprior[i];//W0;
-        sumWold += Wold[i];
-      }
-
-    conv = 0; st = 0;
-    while(conv==0){
-      sumW = 0.0;
-        for(j=0; j<Nm; j++)
-          g[j]=0.0;
-          for(ii=0;ii<cells[num].num_inside;ii++){
-            i = cells[num].indices_inside[ii];
-            sumW +=  W[i];
-            for(j=0; j<Nm; j++){
-              g[j] += (pow(U1[i],d1[j]) * pow(U2[i],d2[j]) * pow(U3[i],d3[j]) ) * W[i];// / (1.*cells[num].num_inside);
-            }
-          }
-          for(j=0; j<Nm; j++){
-            g[j] = g[j] / sumW - p[j];
-          }
-
-          for(j=0; j<Nm; j++){
-            g_norm[j] = g[j];
-            if(j>=3){
-              g_norm[j] = g_norm[j]/p[j];
-            }
-          }
-          norm_grad = norm1(g_norm,Nm);
-
-      if(norm_grad<tol){
-        conv = 1;
-        maxW2 = 0.0;
-        sumW2 = 0.0;
-        for(ii=0;ii<cells[num].num_inside;ii++){
-          sumW2 += W[i];
-          i = cells[num].indices_inside[ii];
-          if(fabs(W[i])>maxW2)
-            maxW2 = fabs(W[i]);
-        }
-
-          for(ii=0;ii<cells[num].num_inside;ii++){
-            i = cells[num].indices_inside[ii];
-            Wold[i] = W[i]*sumWold/sumW2;
-          }
-          cells[num].Wmax = maxW2;
-      }
-      else{
-        av_st+=1.0;
-        st += 1;
-        for(k=0;k<Nm;k++){
-          for(j=0;j<Nm;j++){
-            hess[k][j] = 0.0;
-          }
-        }
-        for(k=0;k<Nm;k++){
-          for(j=k;j<Nm;j++){
-            Ski = 0.0;
-            Sji = 0.0;
-            SkiSji = 0.0;
-            for(ii=0;ii<cells[num].num_inside;ii++){
-              i = cells[num].indices_inside[ii];
-              Ski += pow(U1[i],d1[k]) * pow(U2[i],d2[k]) * pow(U3[i],d3[k])*W[i];
-              Sji += pow(U1[i],d1[j]) * pow(U2[i],d2[j]) * pow(U3[i],d3[j])*W[i];
-              SkiSji += pow(U1[i],d1[k]) * pow(U2[i],d2[k]) * pow(U3[i],d3[k])*pow(U1[i],d1[j]) * pow(U2[i],d2[j]) * pow(U3[i],d3[j])*W[i];
-            }
-            hess[k][j] =SkiSji/sumW - Ski/sumW*p[j] - Sji/sumW*p[k]+p[j]*p[k];
-          }
-        }
-        for(k=0;k<Nm;k++){
-          for(j=0;j<k;j++){
-            hess[k][j] = hess[j][k];
-          }
-
-          for(j=0; j<Nm; j++)
-            lam[j]= lam[j] - x[j];
-          // correct the weights
-          for(ii=0;ii<cells[num].num_inside;ii++){
-            dummy = 0.0;
-            i = cells[num].indices_inside[ii];
-            for(j=0; j<Nm; j++){
-              Sji = (pow(U1[i],d1[j]) * pow(U2[i],d2[j]) * pow(U3[i],d3[j]) - p[j]);
-              //if(peq[j]>1.0)
-              //  Sji = Sji/peq[j];
-              dummy += lam[j]*Sji;
-            }
-            dummy = exp(-dummy);
-            W[i] = (1./dummy)*Wprior[i];//W0;//Wold[i];
-          }
-        }
-        if(st>max_st)
-          max_st = st;
-        }
-      }
-
-  for(ii=0;ii<cells[num].num_inside;ii++){
-    i = cells[num].indices_inside[ii];
-    W[i] = Wold[i];
-  }
-  return st;
-}
-*/
+// Explicit instantiation for Nm = 3
+template __global__ void update_weights<3>(
+    const float*, const float*, const int*, float*, float*, float*, float*, int
+);
