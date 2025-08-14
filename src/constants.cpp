@@ -31,4 +31,4 @@ float Q_OVER_M = 1.0f;     ///< Charge-to-mass ratio (q/m)
 // CUDA kernel launch configuration
 int threadsPerBlock = 256; ///< CUDA threads per block
 int blocksPerGrid = 256;   ///< CUDA blocks per grid
-bool Tiling = true;       ///< Perform tiling in kernels or not
+DepositionMode depositionMode;

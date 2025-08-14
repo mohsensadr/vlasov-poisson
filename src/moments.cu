@@ -753,58 +753,79 @@ void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter)
 
     fc.setZero();
 
-    dim3 threadsPerBlock2d(TILE_X, TILE_Y);
-    dim3 blocksPerGrid2d(
-        (N_GRID_X + TILE_X - 1) / TILE_X,
-        (N_GRID_Y + TILE_Y - 1) / TILE_Y,
-        1  // You can parallelize over z if needed
-    );
+    switch (depositionMode) {
+        case DepositionMode::BRUTE:
 
-    //if(Tiling)
-    //  deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //else
-    //  deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    compute_density(sorter);
-    cudaDeviceSynchronize();
+            deposit_density_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
 
-    // compute bulk velocity (MC)
-    //if(Tiling)
-    //  deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //else
-    //  deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    deposit_velocity_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, num_cells);
-    cudaDeviceSynchronize();
+            deposit_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
 
-    // compute bulk temperature (MC)
-    //if(Tiling)
-    //  deposit_temperature_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //else
-    //  deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    deposit_temperature_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, fc.d_T, num_cells);
-    cudaDeviceSynchronize();
+            deposit_temperature_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, fc.d_N, pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
 
-    // compute density (VR)
-    //if(Tiling)
-    //  deposit_density_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //else
-    //  deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    deposit_density_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_w, sorter.d_cell_offsets, fc.d_NVR, num_cells, n_particles);
-    cudaDeviceSynchronize();
+            deposit_density_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
 
-    // compute velocity (VR)
-    //if(Tiling)
-    //  deposit_velocity_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //else
-    //  deposit_velocity_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    deposit_velocity_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, sorter.d_cell_offsets, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, num_cells);
-    cudaDeviceSynchronize();
+            deposit_velocity_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
 
-    // compute temperature (VR)
-    //if(Tiling)
-    //  deposit_temperature_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    //else
-    //  deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
-    deposit_temperature_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, sorter.d_cell_offsets, fc.d_NVR, fc.d_TVR, num_cells);
-    cudaDeviceSynchronize();
+            deposit_temperature_2d_VR<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            break;
+        case DepositionMode::TILING:
+        {
+            
+            dim3 threadsPerBlock2d(TILE_X, TILE_Y);
+            dim3 blocksPerGrid2d(
+                (N_GRID_X + TILE_X - 1) / TILE_X,
+                (N_GRID_Y + TILE_Y - 1) / TILE_Y,
+                1
+            );
+
+            deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            deposit_temperature_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            deposit_density_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            deposit_velocity_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            deposit_temperature_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+            cudaDeviceSynchronize();
+
+            break;
+        }
+        case DepositionMode::SORTING:
+
+            compute_density(sorter);
+            cudaDeviceSynchronize();
+
+            deposit_velocity_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, num_cells);
+            cudaDeviceSynchronize();
+
+            deposit_temperature_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, fc.d_T, num_cells);
+            cudaDeviceSynchronize();
+
+            deposit_density_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_w, sorter.d_cell_offsets, fc.d_NVR, num_cells, n_particles);
+            cudaDeviceSynchronize();
+
+            deposit_velocity_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, sorter.d_cell_offsets, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, num_cells);
+            cudaDeviceSynchronize();
+
+            deposit_temperature_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, sorter.d_cell_offsets, fc.d_NVR, fc.d_TVR, num_cells);
+            cudaDeviceSynchronize();
+
+            break;
+    }
 }
 

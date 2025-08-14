@@ -100,7 +100,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
 
-    // TODO: dx, dy, Lx, Ly are member variables of field container, remove them here.
+    // TODO: dx, dy, Lx, Ly are member variables of field container, remove them from here.
     dx = Lx/N_GRID_X;
     dy = Ly/N_GRID_Y;
     grid_size = N_GRID_X*N_GRID_Y;
@@ -129,7 +129,9 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // compute moments, needed to find emperical density field
-    sorter.sort_particles_by_cell();
+    if (depositionMode == DepositionMode::SORTING) {
+      sorter.sort_particles_by_cell();
+    }
     compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 
@@ -140,7 +142,9 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // recompute moments given weights, mainly for VR estimate
-    sorter.sort_particles_by_cell();
+    if (depositionMode == DepositionMode::SORTING) {
+      sorter.sort_particles_by_cell();
+    }
     compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 
@@ -173,7 +177,9 @@ void run(const std::string& pdf_type, float* pdf_params) {
         cudaDeviceSynchronize();
 
         // update moments
-        sorter.sort_particles_by_cell();
+        if (depositionMode == DepositionMode::SORTING) {
+          sorter.sort_particles_by_cell();
+        }
         compute_moments(pc, fc, sorter);
         cudaDeviceSynchronize();
 
