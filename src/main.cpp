@@ -13,11 +13,12 @@
 #include "vlasov_poisson.cuh"
 // Using simple CUDA-compatible PDF approach
 
-// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock [tiling] [pdf_type] [pdf_params...]
+// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode [pdf_type] [pdf_params...]
+// deposition_mode: brute | tiling | sorting
 // Examples:
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 true gaussian 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 true cosine 1.0 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 true double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 brute gaussian 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 tiling cosine 1.0 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 sorting double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
 
 int main(int argc, char** argv) {
     if (argc > 1) N_GRID_X = std::atoi(argv[1]);
@@ -37,9 +38,22 @@ int main(int argc, char** argv) {
     blocksPerGrid = (N_PARTICLES + threadsPerBlock - 1) / threadsPerBlock;
 
     if (argc > 9) {
-        std::string tiling_arg(argv[9]);
-        std::transform(tiling_arg.begin(), tiling_arg.end(), tiling_arg.begin(), ::tolower);
-        Tiling = (tiling_arg == "true" || tiling_arg == "1" || tiling_arg == "yes");
+        std::string mode_arg(argv[9]);
+        std::transform(mode_arg.begin(), mode_arg.end(), mode_arg.begin(), ::tolower);
+
+        if (mode_arg == "brute") {
+            depositionMode = DepositionMode::BRUTE;
+        } else if (mode_arg == "tiling") {
+            depositionMode = DepositionMode::TILING;
+        } else if (mode_arg == "sorting") {
+            depositionMode = DepositionMode::SORTING;
+        } else {
+            std::cerr << "Unknown deposition mode: " << mode_arg
+                      << "\nValid options: brute, tiling, sorting\n";
+            return -1;
+        }
+    } else {
+        depositionMode = DepositionMode::BRUTE; // default
     }
 
     // PDF selection
@@ -64,13 +78,20 @@ int main(int argc, char** argv) {
     std::cout << "Ly: " << Ly << "\n";
     std::cout << "threadsPerBlock: " << threadsPerBlock << "\n";
     std::cout << "blocksPerGrid: " << blocksPerGrid << "\n";
-    std::cout << "Tiling: " << (Tiling ? "enabled" : "disabled") << "\n";
+    std::cout << "Running with mode: ";
+    switch (depositionMode) {
+        case DepositionMode::BRUTE:   std::cout << "BRUTE\n"; break;
+        case DepositionMode::TILING:  std::cout << "TILING\n"; break;
+        case DepositionMode::SORTING: std::cout << "SORTING\n"; break;
+    }
     std::cout << "PDF Type: " << pdf_type << "\n";
     std::cout << "PDF Parameters: ";
     for (float param : pdf_params) {
         std::cout << param << " ";
     }
     std::cout << "\n";
+
+    auto start_time = std::chrono::high_resolution_clock::now();
 
     try {
         // Run simulation with specified PDF
@@ -85,6 +106,13 @@ int main(int argc, char** argv) {
         std::cout << "  double_gaussian <var1> <var2> <x1> <y1> <x2> <y2> <weight1> <weight2>\n";
         return -1;
     }
+
+    // Make sure GPU has finished all work before stopping timer
+    cudaDeviceSynchronize();
+
+    std::cout << "Execution time: "
+          << std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_time).count()
+          << " seconds" << std::endl;
 
     return 0;
 }

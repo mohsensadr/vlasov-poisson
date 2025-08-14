@@ -12,6 +12,7 @@
 #include "particle_container.cuh"
 #include "field_container.cuh"
 #include "pdfs.cuh"
+#include "sorting.cuh"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -99,12 +100,14 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
     cudaMemcpyToSymbol(m, &m_host, sizeof(float));
 
+    // TODO: dx, dy, Lx, Ly are member variables of field container, remove them from here.
     dx = Lx/N_GRID_X;
     dy = Ly/N_GRID_Y;
     grid_size = N_GRID_X*N_GRID_Y;
 
     ParticleContainer pc(N_PARTICLES);
-    FieldContainer fc(N_GRID_X, N_GRID_Y);
+    FieldContainer fc(N_GRID_X, N_GRID_Y, Lx, Ly);
+    Sorting sorter(pc, fc);
 
     // Create the appropriate PDF struct for device use
     PDF_position pdf_position;
@@ -126,7 +129,10 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // compute moments, needed to find emperical density field
-    compute_moments(pc, fc);
+    if (depositionMode == DepositionMode::SORTING) {
+      sorter.sort_particles_by_cell();
+    }
+    compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 
     // set particle weights given estimted and exact fields
@@ -136,7 +142,10 @@ void run(const std::string& pdf_type, float* pdf_params) {
     cudaDeviceSynchronize();
 
     // recompute moments given weights, mainly for VR estimate
-    compute_moments(pc, fc);
+    if (depositionMode == DepositionMode::SORTING) {
+      sorter.sort_particles_by_cell();
+    }
+    compute_moments(pc, fc, sorter);
     cudaDeviceSynchronize();
 
     // write out initial fields
@@ -168,7 +177,10 @@ void run(const std::string& pdf_type, float* pdf_params) {
         cudaDeviceSynchronize();
 
         // update moments
-        compute_moments(pc, fc);
+        if (depositionMode == DepositionMode::SORTING) {
+          sorter.sort_particles_by_cell();
+        }
+        compute_moments(pc, fc, sorter);
         cudaDeviceSynchronize();
 
         // print output

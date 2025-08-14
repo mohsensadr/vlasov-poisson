@@ -37,7 +37,14 @@ extern float Q_OVER_M;    ///< Charge-to-mass ratio (q/m)
 // ----------------------------
 extern int threadsPerBlock; ///< CUDA threads per block
 extern int blocksPerGrid;   ///< CUDA blocks per grid
-extern bool Tiling;         ///< CUDA boolean for doing tiling or not
+
+enum class DepositionMode {
+    BRUTE,
+    TILING,
+    SORTING
+};
+
+extern DepositionMode depositionMode; // declaration only
 
 // ----------------------------
 // Host-side constants
