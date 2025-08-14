@@ -1,3 +1,64 @@
+/*
+float mom(float u1, float u2, float U_1, float U_2, int n){
+  switch(n){
+    case 0:
+      return u1-U_1;
+    case 1:
+      return u2-U_2;
+    case 2:
+     return 0.5 * ( pow(u1-U_1,2)+pow(u2-U_2,2) );
+  }
+  return 0;
+}
+
+__global__ void deposit_velocity_2d_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const int* __restrict__ d_cell_offsets,
+    float* __restrict__ Ux,
+    float* __restrict__ Uy,
+    int num_cells
+) {
+    int cell = blockIdx.x * blockDim.x + threadIdx.x;
+    if (cell >= num_cells) return;
+
+    float tol = 1e-5; // tolerance for gradient getting to zero
+    int Nm=3; // number of moments
+
+    // Get start and end index for this cell
+    int start = d_cell_offsets[cell];
+    int end   = d_cell_offsets[cell + 1];
+    int Npc = end - start;
+    float p[Nm];// p: array of current moments
+    float pt[Nm];// p: array of target moments
+
+    // initialize target moments to zero
+    for(int i=0; i<Nm; i++){
+      p[i] = 0.0;
+      pt[i] = 0.0;
+    }
+
+    // compute pre-push moments as target
+    for (int i = start; i < end; i++) {
+      for(int j=0; j<Nm; j++){
+        p[j]  +=  (1.0-w[i])*mom(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+        pt[j] +=  (1.0-wold[i])*mom(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+      }
+    }
+
+    for(int i=0; i<Nm; i++){
+      p[i]  = p[i]/Npc;
+      pt[i] = pt[i]/Npc;
+    }
+
+    // add eq. moments
+    p[2] += 1.0;
+    pt[2] += 1.0;
+
+    // use new weights as prior in this setting
+
+}
+*/
 
 /*
 int crossMED_match(double *U1,double *U2,double *U3, double *W, double *Wold, double *Wprior, struct GAS *gas, struct CELLS *cells,  struct BOX *box, int *index, int num, double Wthreshold, int *Ncol){
