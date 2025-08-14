@@ -161,7 +161,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
         cudaDeviceSynchronize();
 
         // update wold given w
-        cudaMemcpy(pc.d_w, pc.d_wold, size, cudaMemcpyDeviceToDevice);
+        cudaMemcpy(pc.d_wold, pc.d_w, size, cudaMemcpyDeviceToDevice);
 
         // map weights from global to local eq.
         map_weights_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, N_PARTICLES, N_GRID_X, N_GRID_Y,
