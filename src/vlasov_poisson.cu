@@ -152,10 +152,15 @@ void run(const std::string& pdf_type, float* pdf_params) {
     post_proc(fc, 0);
     cudaDeviceSynchronize();
 
+    size_t size = N_PARTICLES * sizeof(float);
+
     for (int step = 1; step < NSteps+1; ++step) {
         // compute Electric field
         solve_poisson_jacobi(fc);
         cudaDeviceSynchronize();
+
+        // update wold given w
+        cudaMemcpy(pc.d_w, pc.d_wold, size, cudaMemcpyDeviceToDevice);
 
         // map weights from global to local eq.
         map_weights_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, N_PARTICLES, N_GRID_X, N_GRID_Y,
@@ -171,6 +176,8 @@ void run(const std::string& pdf_type, float* pdf_params) {
         map_weights_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, N_PARTICLES, N_GRID_X, N_GRID_Y,
             Lx, Ly, false);
         cudaDeviceSynchronize();
+
+        // MxE to conserve equil. moments.
 
         // push particles in the position space
         update_position_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, N_PARTICLES, Lx, Ly, DT);

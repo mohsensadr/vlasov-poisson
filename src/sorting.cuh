@@ -27,6 +27,7 @@ public:
     float *d_vx_sorted = nullptr;
     float *d_vy_sorted = nullptr;
     float *d_w_sorted = nullptr;
+    float *d_wold_sorted = nullptr;
 
     Sorting(ParticleContainer& pc_, FieldContainer& fc_);
     ~Sorting();
