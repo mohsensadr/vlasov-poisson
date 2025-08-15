@@ -120,8 +120,8 @@ void solve_poisson_jacobi(FieldContainer& fc) {
     cudaMemset(phi_new, 0, bytes);
 
     // Block and grid config — safe for any N_GRID_X, N_GRID_Y
-    int threadsPerBlockX = min(N_GRID_X, threadsPerBlock);
-    int threadsPerBlockY = min(N_GRID_Y, threadsPerBlock);
+    int threadsPerBlockX = min(32, (int) (sqrt(threadsPerBlock))); // 32*32=1024 is max thread per block of T40 GPUs
+    int threadsPerBlockY = min(32, (int) (sqrt(threadsPerBlock)));
     dim3 blockDim(threadsPerBlockX, threadsPerBlockY);
     dim3 gridDim(
         (N_GRID_X + blockDim.x - 1) / blockDim.x,

@@ -157,7 +157,7 @@ __global__ void update_weights(
         w[i] = wold[i];
       }
     }
-    if(iter > 100)
+    if(iter > 999)
       printf("MxE iter %d in cell %d\n", iter, cell);
 }
 
