@@ -17,6 +17,7 @@ int grid_size = N_GRID_X * N_GRID_Y; ///< Total number of grid points
 int N_PARTICLES = 100000;  ///< Total number of simulation particles
 float DT = 0.01f;          ///< Time step size
 int NSteps = 100;          ///< Number of simulation steps
+int Nm = 3;                ///< Number of moments
 
 // Domain dimensions and spacing
 float Lx = 1.0f;                       ///< Domain length in X
@@ -32,3 +33,4 @@ float Q_OVER_M = 1.0f;     ///< Charge-to-mass ratio (q/m)
 int threadsPerBlock = 256; ///< CUDA threads per block
 int blocksPerGrid = 256;   ///< CUDA blocks per grid
 DepositionMode depositionMode;
+VRMode vrMode;

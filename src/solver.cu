@@ -53,24 +53,24 @@ __global__ void jacobi_iteration_kernel_periodic(const float *N, float *phi_new,
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (i < N_GRID_X && j < N_GRID_Y) {
-        int ip = periodic_index(i + 1, N_GRID_X);
-        int im = periodic_index(i - 1, N_GRID_X);
-        int jp = periodic_index(j + 1, N_GRID_Y);
-        int jm = periodic_index(j - 1, N_GRID_Y);
+    if (i >= N_GRID_X || j >= N_GRID_Y) return;
 
-        int idx = j * N_GRID_X + i;
-        int idx_im = j * N_GRID_X + im;
-        int idx_ip = j * N_GRID_X + ip;
-        int idx_jm = jm * N_GRID_X + i;
-        int idx_jp = jp * N_GRID_X + i;
+    int ip = periodic_index(i + 1, N_GRID_X);
+    int im = periodic_index(i - 1, N_GRID_X);
+    int jp = periodic_index(j + 1, N_GRID_Y);
+    int jm = periodic_index(j - 1, N_GRID_Y);
 
-        phi_new[idx] = 1.0f / (2.0f * (dx*dx + dy*dy)) * (
-            (phi_old[idx_im] + phi_old[idx_ip]) * dy * dy +
-            (phi_old[idx_jm] + phi_old[idx_jp]) * dx * dx +
-            - N[idx] * dx * dy
-        );
-    }
+    int idx    = j * N_GRID_X + i;
+    int idx_im = j * N_GRID_X + im;
+    int idx_ip = j * N_GRID_X + ip;
+    int idx_jm = jm * N_GRID_X + i;
+    int idx_jp = jp * N_GRID_X + i;
+
+    phi_new[idx] = 1.0f / (2.0f * (dx*dx + dy*dy)) * (
+        (phi_old[idx_im] + phi_old[idx_ip]) * dy * dy +
+        (phi_old[idx_jm] + phi_old[idx_jp]) * dx * dx +
+        - N[idx] * dx * dy
+    );
 }
 
 __global__ void compute_electric_field_kernel(const float *phi, float *Ex, float *Ey,
@@ -119,12 +119,19 @@ void solve_poisson_jacobi(FieldContainer& fc) {
     cudaMemset(phi_old, 0, bytes);
     cudaMemset(phi_new, 0, bytes);
 
-    dim3 blockDim(threadsPerBlock, threadsPerBlock);
-    dim3 gridDim((N_GRID_X + threadsPerBlock-1) / threadsPerBlock, (N_GRID_Y + threadsPerBlock-1) / threadsPerBlock);
+    // Block and grid config — safe for any N_GRID_X, N_GRID_Y
+    int threadsPerBlockX = min(N_GRID_X, threadsPerBlock);
+    int threadsPerBlockY = min(N_GRID_Y, threadsPerBlock);
+    dim3 blockDim(threadsPerBlockX, threadsPerBlockY);
+    dim3 gridDim(
+        (N_GRID_X + blockDim.x - 1) / blockDim.x,
+        (N_GRID_Y + blockDim.y - 1) / blockDim.y
+    );
 
     for (int iter = 0; iter < MAX_ITERS; ++iter) {
         jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(fc.d_N, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
-        
+        cudaDeviceSynchronize();
+
         float* tmp = phi_old;
         phi_old = phi_new;
         phi_new = tmp;
@@ -132,6 +139,7 @@ void solve_poisson_jacobi(FieldContainer& fc) {
 
     // Compute electric field from potential
     compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(phi_old, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
+    cudaDeviceSynchronize();
 
     // Cleanup
     cudaFree(phi_old);

@@ -1,6 +1,8 @@
 #include "MxE.cuh"
 #include <math.h>
 #include <cuda_runtime.h>
+#include <stdio.h>
+#include "constants.hpp"
 
 template<int Nm>
 __device__ void Gauss_Jordan(float H[Nm][Nm], float g[Nm], float x[Nm]) {
@@ -49,6 +51,8 @@ __global__ void update_weights(
     int end   = d_cell_offsets[cell + 1];
     int Npc = end - start;
 
+    if (Npc < 100) return;
+
     float p[Nm] = {0.0f};
     float pt[Nm] = {0.0f};
     float p0[Nm] = {0.0f};
@@ -68,6 +72,14 @@ __global__ void update_weights(
         p[i] /= Npc;
         pt[i] /= Npc;
         pt[i] += p0[i];
+    }
+
+    // now compute target <w*R(v)> moments: 
+    // <R(v)>VR (target) = <R(v)>0 + <(1-w)*R(v)> 
+    // = <R(v)>0 + <R(v)> - <w*R(v)> 
+    // which implies: <w*R(v)> = <R(v)>0 + <R(v)> - <R(v)>VR 
+    // here we reuse variable p to denote <w*R(v)> from this point on
+    for (int i = 0; i < Nm; i++) {
         p[i] = p0[i] + p[i] - pt[i];
     }
 
@@ -92,7 +104,10 @@ __global__ void update_weights(
             g[j] = g[j]/Npc - p[j];
             res += fabsf(g[j]);
         }
-        if (res < tol) convergence = true;
+        if (res < tol){
+          convergence = true;
+          break;
+        }
 
         // Compute Hessian
         for (int i = 0; i < Nm; i++)
@@ -137,9 +152,34 @@ __global__ void update_weights(
         for (int i = start; i < end; i++)
             w[i] *= sumwold/sumW;
     }
+    if(!convergence){
+      for (int i = start; i < end; i++){
+        w[i] = wold[i];
+      }
+    }
+    if(iter > 100)
+      printf("MxE iter %d in cell %d\n", iter, cell);
 }
 
-// Explicit instantiation for Nm = 3
-template __global__ void update_weights<3>(
-    const float*, const float*, const int*, float*, float*, float*, float*, int
-);
+void update_weights_dispatch(
+    const float* vx,
+    const float* vy,
+    const int* d_cell_offsets,
+    float* w,
+    float* wold,
+    float* UxVR,
+    float* UyVR,
+    int num_cells,
+    int Nm
+) {
+
+    switch (Nm) {
+        case 3:
+            update_weights<3><<<blocksPerGrid, threadsPerBlock>>>(vx, vy, d_cell_offsets, w, wold, UxVR, UyVR, num_cells);
+            break;
+        // Add more cases as needed
+        default:
+            printf("Unsupported Nm: %d\n", Nm);
+            break;
+    }
+}

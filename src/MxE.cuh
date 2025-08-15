@@ -19,3 +19,15 @@ __global__ void update_weights(
     int num_cells
 );
 
+
+void update_weights_dispatch(
+    const float* vx,
+    const float* vy,
+    const int* d_cell_offsets,
+    float* w,
+    float* wold,
+    float* UxVR,
+    float* UyVR,
+    int num_cells,
+    int Nm
+);
