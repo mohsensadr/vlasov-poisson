@@ -10,6 +10,7 @@ public:
     float *d_vx = nullptr;
     float *d_vy = nullptr;
     float *d_w = nullptr;
+    float *d_wold = nullptr;
     int n_particles;
 
     ParticleContainer(int n_particles_) : n_particles(n_particles_) {
@@ -19,6 +20,7 @@ public:
         cudaMalloc(&d_vx, bytes);
         cudaMalloc(&d_vy, bytes);
         cudaMalloc(&d_w, bytes);
+        cudaMalloc(&d_wold, bytes);
     }
 
     ~ParticleContainer() {
@@ -27,5 +29,6 @@ public:
         cudaFree(d_vx);
         cudaFree(d_vy);
         cudaFree(d_w);
+        cudaFree(d_wold);
     }
 };

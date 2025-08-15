@@ -67,8 +67,6 @@ public:
         cudaMemset(d_Ux, 0, bytes);
         cudaMemset(d_Uy, 0, bytes);
         cudaMemset(d_T, 0, bytes);
-        cudaMemset(d_Ex, 0, bytes);
-        cudaMemset(d_Ey, 0, bytes);
 
         cudaMemset(d_NVR, 0, bytes);
         cudaMemset(d_UxVR, 0, bytes);

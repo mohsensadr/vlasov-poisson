@@ -36,6 +36,7 @@ set(SOURCES
     ${SRC_DIR}/vlasov_poisson.cu
     ${SRC_DIR}/sorting.cu
     ${SRC_DIR}/IO.cpp
+    ${SRC_DIR}/MxE.cu
 )
 
 # Create the executable

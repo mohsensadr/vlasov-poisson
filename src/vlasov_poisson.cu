@@ -13,6 +13,7 @@
 #include "field_container.cuh"
 #include "pdfs.cuh"
 #include "sorting.cuh"
+#include "MxE.cuh"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
@@ -152,9 +153,15 @@ void run(const std::string& pdf_type, float* pdf_params) {
     post_proc(fc, 0);
     cudaDeviceSynchronize();
 
+    size_t size = N_PARTICLES * sizeof(float);
+
     for (int step = 1; step < NSteps+1; ++step) {
         // compute Electric field
         solve_poisson_jacobi(fc);
+        cudaDeviceSynchronize();
+
+        // update wold given w
+        cudaMemcpy(pc.d_wold, pc.d_w, size, cudaMemcpyDeviceToDevice);
         cudaDeviceSynchronize();
 
         // map weights from global to local eq.
@@ -172,6 +179,12 @@ void run(const std::string& pdf_type, float* pdf_params) {
             Lx, Ly, false);
         cudaDeviceSynchronize();
 
+        // MxE to conserve equil. moments.
+        if (vrMode == VRMode::MXE) {
+          update_weights_dispatch(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, pc.d_w, pc.d_wold, fc.d_UxVR, fc.d_UyVR, grid_size, Nm);
+          cudaDeviceSynchronize();
+        }
+        
         // push particles in the position space
         update_position_2d<<<blocksPerGrid, threadsPerBlock>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, N_PARTICLES, Lx, Ly, DT);
         cudaDeviceSynchronize();
@@ -179,7 +192,9 @@ void run(const std::string& pdf_type, float* pdf_params) {
         // update moments
         if (depositionMode == DepositionMode::SORTING) {
           sorter.sort_particles_by_cell();
+          cudaDeviceSynchronize();
         }
+
         compute_moments(pc, fc, sorter);
         cudaDeviceSynchronize();
 
@@ -189,6 +204,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
             cudaDeviceSynchronize();
         }
     }
+
     std::cout << "Done.\n";
 }
 

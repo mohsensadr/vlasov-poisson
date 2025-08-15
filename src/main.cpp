@@ -13,12 +13,13 @@
 #include "vlasov_poisson.cuh"
 // Using simple CUDA-compatible PDF approach
 
-// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode [pdf_type] [pdf_params...]
+// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode VRMode [pdf_type] [pdf_params...]
 // deposition_mode: brute | tiling | sorting
+// VRMode: basic | MXE
 // Examples:
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 brute gaussian 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 tiling cosine 1.0 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 sorting double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 brute basic gaussian 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 tiling MXE cosine 1.0 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 sorting basic double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
 
 int main(int argc, char** argv) {
     if (argc > 1) N_GRID_X = std::atoi(argv[1]);
@@ -56,16 +57,33 @@ int main(int argc, char** argv) {
         depositionMode = DepositionMode::BRUTE; // default
     }
 
+    if (argc > 10) {
+        std::string mode_arg(argv[10]);
+        std::transform(mode_arg.begin(), mode_arg.end(), mode_arg.begin(), ::tolower);
+
+        if (mode_arg == "basic") {
+            vrMode = VRMode::BASIC;
+        } else if (mode_arg == "mxe") {
+            vrMode = VRMode::MXE;
+        } else {
+            std::cerr << "Unknown VR mode: " << mode_arg
+                      << "\nValid options: basic, mxe\n";
+            return -1;
+        }
+    } else {
+        vrMode = VRMode::BASIC; // default
+    }
+
     // PDF selection
     std::string pdf_type = "gaussian";  // default
     float pdf_params[8] = {0., 0., 0., 0., 0., 0., 0., 0.};
     
-    if (argc > 10) {
-        pdf_type = argv[10];
+    if (argc > 11) {
+        pdf_type = argv[11];
         
         // Parse PDF parameters
-        for (int i = 11; i < argc; ++i) {
-            pdf_params[i-11] = std::atof(argv[i]);
+        for (int i = 12; i < argc; ++i) {
+            pdf_params[i-12] = std::atof(argv[i]);
         }
     }
 
@@ -83,6 +101,11 @@ int main(int argc, char** argv) {
         case DepositionMode::BRUTE:   std::cout << "BRUTE\n"; break;
         case DepositionMode::TILING:  std::cout << "TILING\n"; break;
         case DepositionMode::SORTING: std::cout << "SORTING\n"; break;
+    }
+    std::cout << "Running with VR mode: ";
+        switch (vrMode) {
+        case VRMode::BASIC:   std::cout << "BASIC\n"; break;
+        case VRMode::MXE:  std::cout << "MXE\n"; break;
     }
     std::cout << "PDF Type: " << pdf_type << "\n";
     std::cout << "PDF Parameters: ";

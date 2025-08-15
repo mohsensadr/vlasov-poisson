@@ -26,6 +26,7 @@ extern float Ly;               ///< Domain size in Y
 extern float dx;               ///< Grid spacing in X
 extern float dy;               ///< Grid spacing in Y
 extern std::string problem;    ///< string specifying the problem
+extern int Nm;                 ///< Number of moments
 
 // ----------------------------
 // Physical constants
@@ -44,7 +45,14 @@ enum class DepositionMode {
     SORTING
 };
 
-extern DepositionMode depositionMode; // declaration only
+extern DepositionMode depositionMode;
+
+enum class VRMode {
+    BASIC,
+    MXE
+};
+
+extern VRMode vrMode;
 
 // ----------------------------
 // Host-side constants
