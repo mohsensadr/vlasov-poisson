@@ -47,7 +47,8 @@ add_executable(main ${SOURCES})
 
 # Ensure proper compilation and linking
 target_include_directories(main PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}     # for local headers like "IO.hpp"
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${SRC_DIR}/Depositors
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}  # for cuda_runtime.h
 )
 
