@@ -37,6 +37,9 @@ set(SOURCES
     ${SRC_DIR}/sorting.cu
     ${SRC_DIR}/IO.cpp
     ${SRC_DIR}/MxE.cu
+    ${SRC_DIR}/Depositors/BruteDepositor.cu
+    ${SRC_DIR}/Depositors/TiledDepositor.cu
+    ${SRC_DIR}/Depositors/SortingDepositor.cu
 )
 
 # Create the executable
