@@ -39,7 +39,7 @@ set(SOURCES
     ${SRC_DIR}/MxE.cu
     ${SRC_DIR}/Depositors/BruteDepositor.cu
     ${SRC_DIR}/Depositors/TiledDepositor.cu
-    ${SRC_DIR}/Depositors/SortingDepositor.cu
+    ${SRC_DIR}/Depositors/SortedDepositor.cu
 )
 
 # Create the executable
