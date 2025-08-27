@@ -8,7 +8,7 @@ __global__ void deposit_density_2d_VR_sorted(...) { ... }
 __global__ void deposit_velocity_2d_VR_sorted(...) { ... }
 __global__ void deposit_temperature_2d_VR_sorted(...) { ... }
 
-void BruteDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting& /*sorter*/) {
+void SortedDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter) {
 
     launch(deposit_density_2d_sorted, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
            n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);

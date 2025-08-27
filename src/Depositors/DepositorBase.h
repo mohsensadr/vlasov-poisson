@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ParticleContainer.h"
-#include "FieldContainer.h"
-#include "Sorting.h"
+#include "particle_container.cuh"
+#include "field_container.cuh"
+#include "sorting.cuh"
 #include <cuda_runtime.h>
 
 class DepositorBase {
