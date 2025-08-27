@@ -1,12 +1,60 @@
-#pragma once
 #include "SortedDepositor.h"
 
-__global__ void deposit_density_2d_sorted(...) { ... }
-__global__ void deposit_velocity_2d_sorted(...) { ... }
-__global__ void deposit_temperature_2d_sorted(...) { ... }
-__global__ void deposit_density_2d_VR_sorted(...) { ... }
-__global__ void deposit_velocity_2d_VR_sorted(...) { ... }
-__global__ void deposit_temperature_2d_VR_sorted(...) { ... }
+__global__ void deposit_density_2d_sorted(Sorting& sorter, cudaStream_t stream = 0);
+
+__global__ void deposit_velocity_2d_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const float* __restrict__ w,
+    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
+    const float* __restrict__ NVR,            // number of particles per cell / density
+    float* UxVR,                              // output: x-velocity per cell
+    float* UyVR,                              // output: y-velocity per cell
+    int num_cells
+);
+
+__global__ void deposit_temperature_2d_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const float* __restrict__ w,
+    const float* __restrict__ UxVR,
+    const float* __restrict__ UyVR,
+    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
+    const float* __restrict__ NVR,            // VR density
+    float* TVR,                               // output: VR temperature per cell
+    int num_cells
+);
+
+__global__ void deposit_density_2d_VR_sorted(
+    const float* __restrict__ w,          // particle weights
+    const int*   __restrict__ d_cell_offsets, // per-cell start indices (size num_cells+1)
+    float* NVR,                           // output: variance-reduced density
+    int num_cells,
+    int n_particles
+);
+
+__global__ void deposit_velocity_2d_VR_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const float* __restrict__ w,
+    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
+    const float* __restrict__ NVR,            // number of particles per cell / density
+    float* UxVR,                              // output: x-velocity per cell
+    float* UyVR,                              // output: y-velocity per cell
+    int num_cells
+);
+
+__global__ void deposit_temperature_2d_VR_sorted(
+    const float* __restrict__ vx,
+    const float* __restrict__ vy,
+    const float* __restrict__ w,
+    const float* __restrict__ UxVR,
+    const float* __restrict__ UyVR,
+    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
+    const float* __restrict__ NVR,            // VR density
+    float* TVR,                               // output: VR temperature per cell
+    int num_cells
+);
 
 void SortedDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter) {
 
@@ -126,8 +174,6 @@ __global__ void deposit_temperature_2d_sorted(
     T[cell] = (npart > 0) ? temp_sum / (2.0f * kb/m * npart) : 0.0f;
 }
 
-
-
 __global__ void deposit_density_2d_VR_sorted(
     const float* __restrict__ w,          // particle weights
     const int*   __restrict__ d_cell_offsets, // per-cell start indices (size num_cells+1)
@@ -151,9 +197,6 @@ __global__ void deposit_density_2d_VR_sorted(
 
     NVR[cell] = (npart > 0) ? Navg + sum : Navg;
 }
-
-
-
 
 __global__ void deposit_velocity_2d_VR_sorted(
     const float* __restrict__ vx,
@@ -190,10 +233,6 @@ __global__ void deposit_velocity_2d_VR_sorted(
         UyVR[cell] = 0.0f;
     }
 }
-
-
-
-
 
 __global__ void deposit_temperature_2d_VR_sorted(
     const float* __restrict__ vx,
