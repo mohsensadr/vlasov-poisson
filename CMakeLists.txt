@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 project(vlasov_poisson LANGUAGES CXX CUDA)
 
-# Default to Debug if not specified
+# Default to Release if not specified
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -24,9 +24,6 @@ set(CMAKE_CUDA_ARCHITECTURES 70)
 # Set the source directory
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
-# Include headers from src/
-include_directories(${SRC_DIR})
-
 # Define source files explicitly
 set(SOURCES
     ${SRC_DIR}/main.cpp
@@ -42,7 +39,7 @@ set(SOURCES
     ${SRC_DIR}/Depositors/SortedDepositor.cu
 )
 
-# Create the executable
+# Create the executable with the sources
 add_executable(main ${SOURCES})
 
 # Ensure proper compilation and linking
@@ -52,15 +49,7 @@ target_include_directories(main PRIVATE
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}  # for cuda_runtime.h
 )
 
-# Enable separable compilation for CUDA
-#set_target_properties(main PROPERTIES
-#    CUDA_SEPARABLE_COMPILATION ON
-#)
-
-# Optional: Make sure we're linking statically to cudart
-# target_link_libraries(main PRIVATE cudart_static)
-
-# Enable CUDA extended lambdas (for device lambdas in thrust::for_each)
+# Enable CUDA extended lambdas (for thrust::for_each etc.)
 target_compile_options(main PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>
 )
