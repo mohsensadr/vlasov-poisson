@@ -55,7 +55,7 @@ struct PDF_position {
     __device__ __host__ float normalizer() const {
         switch(type) {
             case 0: // gaussian
-                return 2.0f * PI_F * params[0];
+                return 1.0;
             case 1: // cosine
                 return (params[0] * sinf(Lx * params[1]) + Lx * params[1]) / params[1] * 1.0f / Ly;
             case 2: // double_gaussian
@@ -68,7 +68,7 @@ struct PDF_position {
     __device__ __host__ float pmax() const {
         switch(type) {
             case 0: // gaussian
-                return 1.0f;
+                return 1.0f / (2.0f * PI_F * params[0]);
             case 1: // cosine
                 return  (1.0f + params[0]) / params[2] * (1.0f / Ly);
             case 2: // double_gaussian
@@ -83,7 +83,7 @@ struct PDF_position {
             case 0: { // gaussian
                 float dx = x - Lx/2.0f;
                 float dy = y - Ly/2.0f;
-                return expf(-(dx*dx + dy*dy)/(2.0f*params[0]));
+                return expf(-(dx*dx + dy*dy)/(2.0f*params[0])) / (2.0f * PI_F * params[0] );
             }
             case 1: // cosine
                 return (1.0f + params[0] * cosf(params[1] * x)) / params[2] * (1.0f / Ly);
