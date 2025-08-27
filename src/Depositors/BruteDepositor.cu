@@ -1,11 +1,35 @@
 #include "BruteDepositor.h"
 
-__global__ void deposit_density_2d(...) { ... }
-__global__ void deposit_velocity_2d(...) { ... }
-__global__ void deposit_temperature_2d(...) { ... }
-__global__ void deposit_density_2d_VR(...) { ... }
-__global__ void deposit_velocity_2d_VR(...) { ... }
-__global__ void deposit_temperature_2d_VR(...) { ... }
+__global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
+            int N_GRID_X, int N_GRID_Y,
+            float Lx, float Ly
+  );
+
+__global__ void deposit_velocity_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, int n_particles,
+            int N_GRID_X, int N_GRID_Y,
+            float Lx, float Ly
+  );
+
+__global__ void deposit_temperature_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, float *T, int n_particles,
+            int N_GRID_X, int N_GRID_Y,
+            float Lx, float Ly
+  );
+
+__global__ void deposit_density_2d_VR(float *x, float *y, float *w, float *N, float *NVR, int n_particles,
+            int N_GRID_X, int N_GRID_Y,
+            float Lx, float Ly
+  );
+
+__global__ void deposit_velocity_2d_VR(float *x, float *y, float *vx, float*vy, float *w,
+            float *UxVR, float *UyVR, float *NVR, int n_particles,
+            int N_GRID_X, int N_GRID_Y,
+            float Lx, float Ly
+  );
+
+__global__ void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *vy, float *w, float *N, float *NVR, float *UxVR, float *UyVR, float *TVR, int n_particles,
+            int N_GRID_X, int N_GRID_Y,
+            float Lx, float Ly
+  );
 
 void BruteDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting& /*sorter*/) {
     int n_particles = N_PARTICLES;
