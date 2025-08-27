@@ -47,7 +47,7 @@ __global__ void initialize_particles(float *x, float *y,
     }
 
     if (!accepted) {
-        printf("sampler failed!")
+        printf("sampler failed!");
         x_sample = Lx * curand_uniform(&state);
         y_sample = Ly * curand_uniform(&state);
     }
