@@ -2,7 +2,7 @@
 #define SOLVER_H
 
 #include <cuda_runtime.h>
-#include <field_container.cuh>
+#include <Containers/field_container.cuh>
 
 // Constants
 #define MAX_ITERS 10000

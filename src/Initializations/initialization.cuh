@@ -32,10 +32,9 @@ __global__ void initialize_particles(float *x, float *y,
     float x_sample = 0.0f, y_sample = 0.0f;
     bool accepted = false;
 
-    float normalizer_pdf = pdf.normalizer();
     float p_max = pdf.pmax();
 
-    for (int attempt = 0; attempt < 200 && !accepted; ++attempt) {
+    for (int attempt = 0; attempt < 1000 && !accepted; ++attempt) {
         float x_try = Lx * curand_uniform(&state);
         float y_try = Ly * curand_uniform(&state);
         float u = curand_uniform(&state);
@@ -48,6 +47,7 @@ __global__ void initialize_particles(float *x, float *y,
     }
 
     if (!accepted) {
+        printf("sampler failed!");
         x_sample = Lx * curand_uniform(&state);
         y_sample = Ly * curand_uniform(&state);
     }

@@ -1,7 +1,7 @@
 #include <cuda_runtime.h>
 #include <math.h>
-#include <solver.cuh>
-#include "constants.hpp"
+#include "Solvers/solver.cuh"
+#include "Constants/constants.hpp"
 
 static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;

@@ -2,8 +2,8 @@
 #pragma once
 
 #include <cuda_runtime.h>
-#include "particle_container.cuh"
-#include "field_container.cuh"
+#include "Containers/particle_container.cuh"
+#include "Containers/field_container.cuh"
 
 class Sorting {
 public:

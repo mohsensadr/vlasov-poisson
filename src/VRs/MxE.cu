@@ -1,8 +1,8 @@
-#include "MxE.cuh"
 #include <math.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
-#include "constants.hpp"
+#include "VRs/MxE.cuh"
+#include "Constants/constants.hpp"
 
 template<int Nm>
 __device__ void Gauss_Jordan(float H[Nm][Nm], float g[Nm], float x[Nm]) {

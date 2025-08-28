@@ -9,8 +9,8 @@
 #include <string>
 #include <algorithm>
 
-#include "constants.hpp"
-#include "vlasov_poisson.cuh"
+#include "Constants/constants.hpp"
+#include "Models/vlasov_poisson.cuh"
 // Using simple CUDA-compatible PDF approach
 
 // ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode VRMode [pdf_type] [pdf_params...]
