@@ -28,6 +28,7 @@ set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 set(SOURCES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/constants.cpp
+    ${SRC_DIR}/Containers/particle_container.cu
     ${SRC_DIR}/solver.cu
     ${SRC_DIR}/moments.cu
     ${SRC_DIR}/vlasov_poisson.cu

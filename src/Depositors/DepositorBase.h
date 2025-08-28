@@ -1,7 +1,7 @@
 #pragma once
 
-#include "particle_container.cuh"
-#include "field_container.cuh"
+#include "Containers/particle_container.cuh"
+#include "Containers/field_container.cuh"
 #include "sorting.cuh"
 #include "constants.hpp"
 #include <cuda_runtime.h>
