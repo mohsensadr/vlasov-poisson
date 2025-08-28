@@ -1,112 +1,36 @@
 #include "SortedDepositor.h"
 
-__global__ void deposit_density_2d_sorted(Sorting& sorter, cudaStream_t stream = 0);
-
-__global__ void deposit_velocity_2d_sorted(
-    const float* __restrict__ vx,
-    const float* __restrict__ vy,
-    const float* __restrict__ w,
-    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
-    const float* __restrict__ NVR,            // number of particles per cell / density
-    float* UxVR,                              // output: x-velocity per cell
-    float* UyVR,                              // output: y-velocity per cell
-    int num_cells
-);
-
-__global__ void deposit_temperature_2d_sorted(
-    const float* __restrict__ vx,
-    const float* __restrict__ vy,
-    const float* __restrict__ w,
-    const float* __restrict__ UxVR,
-    const float* __restrict__ UyVR,
-    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
-    const float* __restrict__ NVR,            // VR density
-    float* TVR,                               // output: VR temperature per cell
-    int num_cells
-);
-
-__global__ void deposit_density_2d_VR_sorted(
-    const float* __restrict__ w,          // particle weights
-    const int*   __restrict__ d_cell_offsets, // per-cell start indices (size num_cells+1)
-    float* NVR,                           // output: variance-reduced density
-    int num_cells,
-    int n_particles
-);
-
-__global__ void deposit_velocity_2d_VR_sorted(
-    const float* __restrict__ vx,
-    const float* __restrict__ vy,
-    const float* __restrict__ w,
-    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
-    const float* __restrict__ NVR,            // number of particles per cell / density
-    float* UxVR,                              // output: x-velocity per cell
-    float* UyVR,                              // output: y-velocity per cell
-    int num_cells
-);
-
-__global__ void deposit_temperature_2d_VR_sorted(
-    const float* __restrict__ vx,
-    const float* __restrict__ vy,
-    const float* __restrict__ w,
-    const float* __restrict__ UxVR,
-    const float* __restrict__ UyVR,
-    const int*   __restrict__ d_cell_offsets, // start indices of particles per cell
-    const float* __restrict__ NVR,            // VR density
-    float* TVR,                               // output: VR temperature per cell
-    int num_cells
-);
-
 void SortedDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter) {
+    int n_particles = N_PARTICLES;
+    int num_cells = fc.nx * fc.ny;
 
-    launch(deposit_density_2d_sorted, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
-           n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(sorter.d_cell_counts, sorter.fc->d_N, num_cells);
     cudaDeviceSynchronize();
 
-    launch(deposit_velocity_2d_sorted, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
-           pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, num_cells);
     cudaDeviceSynchronize();
 
-    launch(deposit_temperature_2d_sorted, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
-           pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, fc.d_Ux, fc.d_Uy, fc.d_T, num_cells);
     cudaDeviceSynchronize();
 
-    launch(deposit_density_2d_VR_sorted, blocks, threads, pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR,
-           n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_w, sorter.d_cell_offsets, fc.d_NVR, num_cells, n_particles);
     cudaDeviceSynchronize();
 
-    launch(deposit_velocity_2d_VR_sorted, blocks, threads, pc.d_x, pc.d_y, pc.d_vx, pc.d_vy,
-           pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, sorter.d_cell_offsets, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, num_cells);
     cudaDeviceSynchronize();
 
-    launch(deposit_temperature_2d_VR_tiled, blocks, threads, pc.d_x, pc.d_y, pc.d_vx, pc.d_vy,
-           pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR,
-           n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_VR_sorted<<<blocksPerGrid, threadsPerBlock>>>(pc.d_vx, pc.d_vy, pc.d_w, fc.d_UxVR, fc.d_UyVR, sorter.d_cell_offsets, fc.d_NVR, fc.d_TVR, num_cells);
     cudaDeviceSynchronize();
 }
 
-__global__ void copy_counts_to_density(
-    const int* __restrict__ cell_counts,
-    float* __restrict__ density,
+__global__ void deposit_density_2d_sorted(
+    const int* __restrict__ d_cell_counts,
+    float* __restrict__ d_N,
     int num_cells
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= num_cells) return;
-    density[i] = static_cast<float>(cell_counts[i]);
-}
-
-void deposit_density_2d_sorted(Sorting& sorter, cudaStream_t stream = 0) {
-    int num_cells = sorter.nx * sorter.ny;
-
-    // cell_counts was already computed in sort_particles_and_compute_density()
-    // so we just copy it into the density field.
-    copy_counts_to_density<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-        sorter.d_cell_counts,
-        sorter.fc->d_N,
-        num_cells
-    );
-
-    // optional: sync if you need immediate access to density
-    cudaStreamSynchronize(stream);
+    d_N[i] = static_cast<float>(d_cell_counts[i]);
 }
 
 __global__ void deposit_velocity_2d_sorted(

@@ -18,10 +18,4 @@ public:
 
 protected:
     void sync() { cudaDeviceSynchronize(); }
-
-    template<typename Kernel, typename... Args>
-    void launch(Kernel kernel, dim3 grid, dim3 block, Args... args) {
-        kernel<<<grid, block>>>(args...);
-        sync();
-    }
 };

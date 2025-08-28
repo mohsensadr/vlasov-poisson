@@ -1,88 +1,25 @@
 #include "TiledDepositor.h"
 
-__global__ void deposit_density_2d_tiled(
-    float *x, float *y, float *N,
-    int n_particles,
-    int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
-);
-
-__global__ void deposit_velocity_2d_tiled(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *N, float *Ux, float *Uy,
-    int n_particles,
-    int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
-);
-
-__global__ void deposit_temperature_2d_tiled(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *N, const float *Ux, const float *Uy,
-    float *T,
-    int n_particles,
-    int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
-);
-
-__global__ void deposit_density_2d_VR_tiled(
-    const float *x, const float *y,
-    const float *w,
-    const float *N,
-    float *NVR,
-    int n_particles,
-    int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
-);
-
-__global__ void deposit_velocity_2d_VR_tiled(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *w,
-    const float *NVR,
-    float *UxVR, float *UyVR,
-    int n_particles,
-    int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
-);
-
-__global__ void deposit_temperature_2d_VR_tiled(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *w,
-    const float *N,
-    const float *NVR,
-    const float *UxVR, const float *UyVR,
-    float *TVR,
-    int n_particles,
-    int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
-);
-
 void TiledDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting& /*sorter*/) {
     int n_particles = N_PARTICLES;
-    dim3 threads(256);
-    dim3 blocks((n_particles + 255) / 256);
+    dim3 threadsPerBlock2d(TILE_X, TILE_Y);
+    dim3 blocksPerGrid2d(
+        (N_GRID_X + TILE_X - 1) / TILE_X,
+        (N_GRID_Y + TILE_Y - 1) / TILE_Y,
+        1
+    );
 
-    launch(deposit_density_2d_tiled, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
-           n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, fc.d_N, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
 
-    launch(deposit_velocity_2d_tiled, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
-           pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
 
-    launch(deposit_temperature_2d_tiled, blocks, threads, pc.d_x, pc.d_y, fc.d_N,
-           pc.d_vx, pc.d_vy, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, fc.d_N, fc.d_Ux, fc.d_Uy, fc.d_T, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
 
-    launch(deposit_density_2d_VR_tiled, blocks, threads, pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR,
-           n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_density_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_w, fc.d_N, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
 
-    launch(deposit_velocity_2d_VR_tiled, blocks, threads, pc.d_x, pc.d_y, pc.d_vx, pc.d_vy,
-           pc.d_w, fc.d_UxVR, fc.d_UyVR, fc.d_NVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_velocity_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
 
-    launch(deposit_temperature_2d_VR_tiled, blocks, threads, pc.d_x, pc.d_y, pc.d_vx, pc.d_vy,
-           pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR,
-           n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
+    deposit_temperature_2d_VR_tiled<<<blocksPerGrid2d, threadsPerBlock2d>>>(pc.d_x, pc.d_y, pc.d_vx, pc.d_vy, pc.d_w, fc.d_N, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_TVR, n_particles, N_GRID_X, N_GRID_Y, Lx, Ly);
 }
 
 __global__ void deposit_density_2d_tiled(
