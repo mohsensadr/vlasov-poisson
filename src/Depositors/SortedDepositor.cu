@@ -176,7 +176,7 @@ __global__ void deposit_temperature_2d_VR_sorted(
     int end   = d_cell_offsets[cell + 1]; // exclusive
     int npart = end - start;
 
-    float temp_sum = 0.0f;
+    if (npart < 1.0) return;
 
     // Navg for variance reduction
     float Navg = 0.0f;
@@ -184,20 +184,15 @@ __global__ void deposit_temperature_2d_VR_sorted(
         Navg = float(d_cell_offsets[num_cells]) / float(num_cells); // total_particles / num_cells
     }
 
-    float energy;
+    float temp_sum = 0.0f;
 
     for (int i = start; i < end; ++i) {
         float dvx = vx[i] - UxVR[cell];
         float dvy = vy[i] - UyVR[cell];
-        energy = (dvx*dvx + dvy*dvy) * 0.5f * (1.0f - w[i]);
+        temp_sum += (dvx*dvx + dvy*dvy) * 0.5f * (1.0f - w[i]);
     }
 
-    temp_sum = energy + Navg;// kb/m=1 here
+    temp_sum += Navg;// kb/m=1 here
 
-    // Add eq. term
-    if (npart > 0.0f) {
-        temp_sum /= NVR[cell]; // (kb/m)=1
-    }
-
-    TVR[cell] = temp_sum;
+    TVR[cell] = temp_sum / NVR[cell];
 }
