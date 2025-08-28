@@ -95,7 +95,7 @@ __global__ void deposit_temperature_2d_sorted(
         temp_sum += dvx * dvx + dvy * dvy;
     }
 
-    T[cell] = (npart > 0) ? temp_sum / (2.0f * kb/m * npart) : 0.0f;
+    T[cell] = (npart > 0) ? temp_sum / (2.0f * npart) : 0.0f; // kb/m=1 here
 }
 
 __global__ void deposit_density_2d_VR_sorted(
@@ -192,11 +192,11 @@ __global__ void deposit_temperature_2d_VR_sorted(
         energy = (dvx*dvx + dvy*dvy) * 0.5f * (1.0f - w[i]);
     }
 
-    temp_sum = energy / npart / NVR[cell] / (kb/m); // divide by VR density
+    temp_sum = energy + Navg;// kb/m=1 here
 
     // Add eq. term
     if (npart > 0.0f) {
-        temp_sum += Navg/(kb/m)/NVR[cell];
+        temp_sum /= NVR[cell]; // (kb/m)=1
     }
 
     TVR[cell] = temp_sum;
