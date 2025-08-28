@@ -27,14 +27,14 @@ set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 # Define source files explicitly
 set(SOURCES
     ${SRC_DIR}/main.cpp
-    ${SRC_DIR}/constants.cpp
+    ${SRC_DIR}/Constants/constants.cpp
     ${SRC_DIR}/Containers/particle_container.cu
-    ${SRC_DIR}/solver.cu
-    ${SRC_DIR}/moments.cu
-    ${SRC_DIR}/vlasov_poisson.cu
-    ${SRC_DIR}/sorting.cu
-    ${SRC_DIR}/IO.cpp
-    ${SRC_DIR}/MxE.cu
+    ${SRC_DIR}/Solvers/solver.cu
+    ${SRC_DIR}/Depositors/moments.cu
+    ${SRC_DIR}/Models/vlasov_poisson.cu
+    ${SRC_DIR}/Sorters/sorting.cu
+    ${SRC_DIR}/IOs/IO.cpp
+    ${SRC_DIR}/VRs/MxE.cu
     ${SRC_DIR}/Depositors/BruteDepositor.cu
     ${SRC_DIR}/Depositors/TiledDepositor.cu
     ${SRC_DIR}/Depositors/SortedDepositor.cu

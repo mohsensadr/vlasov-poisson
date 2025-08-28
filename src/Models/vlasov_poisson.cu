@@ -4,16 +4,16 @@
 #include <cstdlib>
 #include <cuda_runtime.h>
 
-#include "constants.hpp"
-#include "solver.cuh"
-#include "initialization.cuh"
-#include "IO.h"
-#include "moments.cuh"
+#include "Constants/constants.hpp"
+#include "Solvers/solver.cuh"
+#include "Initializations/initialization.cuh"
+#include "IOs/IO.h"
+#include "Depositors/moments.cuh"
 #include "Containers/particle_container.cuh"
 #include "Containers/field_container.cuh"
-#include "pdfs.cuh"
-#include "sorting.cuh"
-#include "MxE.cuh"
+#include "Distributions/pdfs.cuh"
+#include "Sorters/sorting.cuh"
+#include "VRs/MxE.cuh"
 
 void run(const std::string& pdf_type, float* pdf_params) {
     cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));

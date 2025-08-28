@@ -1,9 +1,9 @@
-#include "constants.hpp"
 #include <iostream>
 #include <fstream>
 #include <cuda_runtime.h>
 #include <memory>
-#include "moments.cuh"
+#include "Constants/constants.hpp"
+#include "Depositors/moments.cuh"
 #include "Depositors/BruteDepositor.h"
 #include "Depositors/TiledDepositor.h"
 #include "Depositors/SortedDepositor.h"

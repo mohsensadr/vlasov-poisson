@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "IO.h"
-#include "constants.hpp"
+#include "IOs/IO.h"
+#include "Constants/constants.hpp"
 #include <cuda_runtime.h>
 
 namespace fs = std::filesystem;

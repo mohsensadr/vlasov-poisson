@@ -2,8 +2,8 @@
 
 #include "Containers/particle_container.cuh"
 #include "Containers/field_container.cuh"
-#include "sorting.cuh"
-#include "constants.hpp"
+#include "Sorters/sorting.cuh"
+#include "Constants/constants.hpp"
 #include <cuda_runtime.h>
 
 class DepositorBase {
