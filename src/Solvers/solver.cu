@@ -109,6 +109,60 @@ __global__ void compute_electric_field_kernel_periodic(const float *phi, float *
     }
 }
 
+__global__ void compute_l2_norm_kernel(const float* phi_new, const float* phi_old, float* block_sums, int N) {
+    extern __shared__ float sdata[];
+    unsigned int tid = threadIdx.x;
+    unsigned int idx = blockIdx.x * blockDim.x * 2 + threadIdx.x;
+
+    // Compute squared differences and load into shared memory
+    float sum = 0.0f;
+    if (idx < N) {
+        float diff = phi_new[idx] - phi_old[idx];
+        sum += diff * diff;
+    }
+    if (idx + blockDim.x < N) {
+        float diff = phi_new[idx + blockDim.x] - phi_old[idx + blockDim.x];
+        sum += diff * diff;
+    }
+    sdata[tid] = sum;
+    __syncthreads();
+
+    // Reduction in shared memory
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s) sdata[tid] += sdata[tid + s];
+        __syncthreads();
+    }
+
+    // Write block sum to global memory
+    if (tid == 0) block_sums[blockIdx.x] = sdata[0];
+}
+
+
+float compute_l2_norm(const float* phi_new, const float* phi_old, int N) {
+    int threads = threadsPerBlock;
+    int blocks = blocksPerGrid;
+
+    float* d_block_sums;
+    cudaMalloc(&d_block_sums, blocks * sizeof(float));
+
+    // Launch fused kernel
+    compute_l2_norm_kernel<<<blocks, threads, threads * sizeof(float)>>>(phi_new, phi_old, d_block_sums, N);
+    cudaDeviceSynchronize();
+
+    // Reduce remaining blocks on host (or launch kernel again if N is huge)
+    float* h_block_sums = new float[blocks];
+    cudaMemcpy(h_block_sums, d_block_sums, blocks * sizeof(float), cudaMemcpyDeviceToHost);
+
+    float sum = 0.0f;
+    for (int i = 0; i < blocks; ++i) sum += h_block_sums[i];
+
+    delete[] h_block_sums;
+    cudaFree(d_block_sums);
+
+    return sqrt(sum);
+}
+
+
 void solve_poisson_jacobi(FieldContainer& fc) {
     int size = N_GRID_X * N_GRID_Y;
     size_t bytes = size * sizeof(float);
@@ -128,13 +182,21 @@ void solve_poisson_jacobi(FieldContainer& fc) {
         (N_GRID_Y + blockDim.y - 1) / blockDim.y
     );
 
-    for (int iter = 0; iter < MAX_ITERS; ++iter) {
+    float threshold = 1e-5;
+    float l2_norm = 1.0f;
+    int iter = 0;
+
+    while (iter < MAX_ITERS && l2_norm > threshold) {
         jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(fc.d_N, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         cudaDeviceSynchronize();
+
+        l2_norm = compute_l2_norm(phi_new, phi_old, N_GRID_X * N_GRID_Y);
 
         float* tmp = phi_old;
         phi_old = phi_new;
         phi_new = tmp;
+
+        iter++;
     }
 
     // Compute electric field from potential
