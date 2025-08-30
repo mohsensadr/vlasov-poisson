@@ -41,7 +41,7 @@ __global__ void jacobi_iteration_kernel(const float *N, float *phi_new, const fl
 
     if (i > 0 && i < N_GRID_X - 1 && j > 0 && j < N_GRID_Y - 1) {
         int idx = j * N_GRID_X + i;
-        phi_new[idx] = 1.0f/(2.0f*dx*dx + dy*dy) * (
+        phi_new[idx] = 1.0f/(2.0f*dx*dx + 2.0f*dy*dy) * (
             + (phi_old[idx - 1] + phi_old[idx + 1]) * dy*dy               // left + right
             + (phi_old[idx - N_GRID_X] + phi_old[idx + N_GRID_X]) * dx*dx // bottom + top
             + N[idx] * dx * dy ); // Number of particles [-] / volume [dx*dy] * dx^2*dy^2
@@ -67,10 +67,34 @@ __global__ void jacobi_iteration_kernel_periodic(const float *N, float *phi_new,
     int idx_jp = jp * N_GRID_X + i;
 
     phi_new[idx] = 1.0f / (2.0f * (dx*dx + dy*dy)) * (
-        (phi_old[idx_im] + phi_old[idx_ip]) * dy * dy +
-        (phi_old[idx_jm] + phi_old[idx_jp]) * dx * dx +
-        - N[idx] * dx * dy
+        (phi_old[idx_im] + phi_old[idx_ip]) * dy * dy +  // left + right
+        (phi_old[idx_jm] + phi_old[idx_jp]) * dx * dx +  // bottom + top
+        + N[idx] * dx * dy // Number of particles [-] / volume [dx*dy] * dx^2*dy^2
     );
+}
+
+__global__ void compute_residual_kernel(const float *phi, const float *N, float *residual,
+                                        int N_GRID_X, int N_GRID_Y, float dx, float dy) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (i >= N_GRID_X || j >= N_GRID_Y) return;
+
+    int ip = periodic_index(i + 1, N_GRID_X);
+    int im = periodic_index(i - 1, N_GRID_X);
+    int jp = periodic_index(j + 1, N_GRID_Y);
+    int jm = periodic_index(j - 1, N_GRID_Y);
+
+    int idx    = j * N_GRID_X + i;
+    int idx_im = j * N_GRID_X + im;
+    int idx_ip = j * N_GRID_X + ip;
+    int idx_jm = jm * N_GRID_X + i;
+    int idx_jp = jp * N_GRID_X + i;
+
+    float lap = (phi[idx_im] - 2.0f*phi[idx] + phi[idx_ip]) / dx * dy 
+              + (phi[idx_jm] - 2.0f*phi[idx] + phi[idx_jp]) / dy * dx;
+
+    residual[idx] = lap + N[idx];  // since -∇²φ = N/dx*dy  ⇒  dx*dy * ∇²φ  + N = 0
 }
 
 __global__ void compute_electric_field_kernel(const float *phi, float *Ex, float *Ey,
@@ -109,59 +133,53 @@ __global__ void compute_electric_field_kernel_periodic(const float *phi, float *
     }
 }
 
-__global__ void compute_l2_norm_kernel(const float* phi_new, const float* phi_old, float* block_sums, int N) {
+__global__ void compute_l2_norm_kernel(const float* vec, float* block_sums, int N) {
     extern __shared__ float sdata[];
     unsigned int tid = threadIdx.x;
     unsigned int idx = blockIdx.x * blockDim.x * 2 + threadIdx.x;
 
-    // Compute squared differences and load into shared memory
+    // Each thread loads up to two elements
     float sum = 0.0f;
     if (idx < N) {
-        float diff = phi_new[idx] - phi_old[idx];
-        sum += diff * diff;
+        float v = vec[idx];
+        sum += v * v;
     }
     if (idx + blockDim.x < N) {
-        float diff = phi_new[idx + blockDim.x] - phi_old[idx + blockDim.x];
-        sum += diff * diff;
+        float v = vec[idx + blockDim.x];
+        sum += v * v;
     }
     sdata[tid] = sum;
     __syncthreads();
 
-    // Reduction in shared memory
+    // Parallel reduction inside block
     for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
         if (tid < s) sdata[tid] += sdata[tid + s];
         __syncthreads();
     }
 
-    // Write block sum to global memory
+    // Write block’s partial sum
     if (tid == 0) block_sums[blockIdx.x] = sdata[0];
 }
 
-
-float compute_l2_norm(const float* phi_new, const float* phi_old, int N) {
-    int threads = threadsPerBlock;
-    int blocks = blocksPerGrid;
-
+float compute_l2_norm(const float* vec, int N) {
     float* d_block_sums;
-    cudaMalloc(&d_block_sums, blocks * sizeof(float));
+    cudaMalloc(&d_block_sums, blocksPerGrid * sizeof(float));
 
-    // Launch fused kernel
-    compute_l2_norm_kernel<<<blocks, threads, threads * sizeof(float)>>>(phi_new, phi_old, d_block_sums, N);
+    compute_l2_norm_kernel<<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(float)>>>(vec, d_block_sums, N);
     cudaDeviceSynchronize();
 
-    // Reduce remaining blocks on host (or launch kernel again if N is huge)
-    float* h_block_sums = new float[blocks];
-    cudaMemcpy(h_block_sums, d_block_sums, blocks * sizeof(float), cudaMemcpyDeviceToHost);
+    // Copy block sums back
+    float* h_block_sums = new float[blocksPerGrid];
+    cudaMemcpy(h_block_sums, d_block_sums, blocksPerGrid * sizeof(float), cudaMemcpyDeviceToHost);
 
     float sum = 0.0f;
-    for (int i = 0; i < blocks; ++i) sum += h_block_sums[i];
+    for (int i = 0; i < blocksPerGrid; ++i) sum += h_block_sums[i];
 
     delete[] h_block_sums;
     cudaFree(d_block_sums);
 
     return sqrt(sum);
 }
-
 
 void solve_poisson_jacobi(FieldContainer& fc) {
     int size = N_GRID_X * N_GRID_Y;
@@ -182,7 +200,7 @@ void solve_poisson_jacobi(FieldContainer& fc) {
         (N_GRID_Y + blockDim.y - 1) / blockDim.y
     );
 
-    float threshold = 1e-5;
+    float threshold = 1e-4;
     float l2_norm = 1.0f;
     int iter = 0;
 
@@ -190,13 +208,25 @@ void solve_poisson_jacobi(FieldContainer& fc) {
         jacobi_iteration_kernel_periodic<<<gridDim, blockDim>>>(fc.d_N, phi_new, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
         cudaDeviceSynchronize();
 
-        l2_norm = compute_l2_norm(phi_new, phi_old, N_GRID_X * N_GRID_Y);
+        // compute residual r = Ax-b in-place of phi_old
+        compute_residual_kernel<<<gridDim, blockDim>>>(phi_new, fc.d_N, phi_old, N_GRID_X, N_GRID_Y, dx, dy);
+        cudaDeviceSynchronize();
 
+        // compute |r|
+        l2_norm = compute_l2_norm(phi_old, N_GRID_X * N_GRID_Y);
+        // normalize it with |x|
+        l2_norm /= compute_l2_norm(fc.d_N, N_GRID_X * N_GRID_Y);
+
+        // store phi_new in phi_old
+        // next iteration phi_new is going to be computed (written) again
         float* tmp = phi_old;
         phi_old = phi_new;
         phi_new = tmp;
 
         iter++;
+
+        if(iter %1==0)
+          printf("iter %d |res| = %f \n", iter, l2_norm);
     }
 
     // Compute electric field from potential

@@ -5,7 +5,7 @@
 #include <Containers/field_container.cuh>
 
 // Constants
-#define MAX_ITERS 10000
+#define MAX_ITERS 200
 #define TOL 1e-5f
 
 // CUDA kernel declarations
