@@ -1,9 +1,8 @@
-#include <cuda_runtime.h>
-#include <math.h>
+#include <cstdio>
+#include <cmath>
 #include <cufft.h>
-
-#include "Solvers/solver.cuh"
-#include "Constants/constants.hpp"
+#include <cuda_runtime.h>
+// compile with: nvcc -O3 -arch=sm_70 poisson_fft_solver.cu -lcufft -o poisson_solver
 
 // ---------------------------------------------
 // Utility: check CUDA errors
@@ -51,7 +50,7 @@ __global__ void scale_real_kernel(float* arr, float alpha, int N) {
 // ---------------------------------------------
 // Kernel: compute residual r = Laplacian(phi) + N
 // ---------------------------------------------
-__global__ void compute_residual_kernel(const float *phi, const float *d_rhs, float *residual,
+__global__ void compute_residual_kernel(const float *phi, const float *N, float *residual,
                                         int NX, int NY, float dx, float dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -72,7 +71,7 @@ __global__ void compute_residual_kernel(const float *phi, const float *d_rhs, fl
     float lap = (phi[idx_im] - 2.0f*phi[idx] + phi[idx_ip]) / (dx*dx)
               + (phi[idx_jm] - 2.0f*phi[idx] + phi[idx_jp]) / (dy*dy);
 
-    residual[idx] = lap + d_rhs[idx];
+    residual[idx] = lap + N[idx];
 }
 
 // ---------------------------------------------
@@ -160,88 +159,54 @@ void poisson_fft_solver(int NX, int NY, float dx, float dy,
     cudaFree(d_phi_hat);
 }
 
-static __device__ int periodic_index(int i, int N) {
-    return (i + N) % N;
-}
+// ---------------------------------------------
+// Main: test the solver
+// ---------------------------------------------
+int main() {
+    int NX = 64, NY = 64;
+    float dx = 1.0f/NX, dy = 1.0f/NY;
+    int N = NX*NY;
 
-__global__ void compute_electric_field_kernel_periodic(const float *phi, float *Ex, float *Ey,
-                                              int N_GRID_X, int N_GRID_Y, float dx, float dy) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    // Host arrays
+    float* h_rhs = new float[N];
+    float* h_phi = new float[N];
 
-    if (i < N_GRID_X && j < N_GRID_Y) {
-        int ip = periodic_index(i + 1, N_GRID_X);
-        int im = periodic_index(i - 1, N_GRID_X);
-        int jp = periodic_index(j + 1, N_GRID_Y);
-        int jm = periodic_index(j - 1, N_GRID_Y);
-
-        int idx = j * N_GRID_X + i;
-        int idx_ip = j * N_GRID_X + ip;
-        int idx_im = j * N_GRID_X + im;
-        int idx_jp = jp * N_GRID_X + i;
-        int idx_jm = jm * N_GRID_X + i;
-
-        Ex[idx] = -(phi[idx_ip] - phi[idx_im]) / (2.0f * dx);
-        Ey[idx] = -(phi[idx_jp] - phi[idx_jm]) / (2.0f * dy);
+    // Example RHS: N(x,y) = sin(2πx) sin(2πy)
+    for (int j=0; j<NY; j++) {
+        for (int i=0; i<NX; i++) {
+            float x = i*dx;
+            float y = j*dy;
+            h_rhs[j*NX + i] = sinf(2*M_PI*x) * sinf(2*M_PI*y);
+        }
     }
-}
 
-__global__ void compute_rhs_kernel(const float* d_N, float* d_rhs, int NX, int NY, float dx, float dy) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (i >= NX || j >= NY) return;
-
-    int idx = j * NX + i;
-    d_rhs[idx] = d_N[idx] / (dx * dy);
-
-    // for debugging:
-    //float x = i*dx;
-    //float y = j*dy;
-    //d_rhs[idx] = sinf(2*M_PI*x) * sinf(2*M_PI*y);
-
-}
-
-void solve_poisson_periodic(FieldContainer& fc) {
-    // Compute residual
-    // Block and grid config — safe for any N_GRID_X, N_GRID_Y
-    int threadsPerBlockX = min(32, (int) (sqrt(threadsPerBlock))); // 32*32=1024 is max thread per block of T40 GPUs
-    int threadsPerBlockY = min(32, (int) (sqrt(threadsPerBlock)));
-    dim3 blockDim(threadsPerBlockX, threadsPerBlockY);
-    dim3 gridDim(
-        (N_GRID_X + blockDim.x - 1) / blockDim.x,
-        (N_GRID_Y + blockDim.y - 1) / blockDim.y
-    );
-
-    int size = N_GRID_X * N_GRID_Y;
+    // Device arrays
     float *d_rhs, *d_phi, *d_residual;
+    CUDA_CHECK(cudaMalloc(&d_rhs, N*sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_phi, N*sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_residual, N*sizeof(float)));
 
-    CUDA_CHECK(cudaMalloc(&d_rhs, size*sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_phi, size*sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_residual, size*sizeof(float)));
-
-    compute_rhs_kernel<<<gridDim, blockDim>>>(fc.d_N, d_rhs, N_GRID_X, N_GRID_Y, dx, dy);
-    cudaDeviceSynchronize();
-
-    float res_normalizer = compute_l2_norm(d_rhs, size); CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(d_rhs, h_rhs, N*sizeof(float), cudaMemcpyHostToDevice));
 
     // Solve Poisson
-    poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, d_phi);
+    poisson_fft_solver(NX, NY, dx, dy, d_rhs, d_phi);
 
-    // Compute Residual
-    compute_residual_kernel<<<gridDim, blockDim>>>(d_phi, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
+    // Compute residual
+    dim3 threads2D(16,16);
+    dim3 blocks2D((NX+15)/16, (NY+15)/16);
+    compute_residual_kernel<<<blocks2D, threads2D>>>(d_phi, d_rhs, d_residual, NX, NY, dx, dy);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     // Compute L2 norm of residual
-    float res_norm = compute_l2_norm(d_residual, size); CUDA_CHECK(cudaDeviceSynchronize());
-    res_norm /= res_normalizer;
-    //printf("Residual L2 norm = %e\n", res_norm);
-
-    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(d_phi, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
-    cudaDeviceSynchronize();
+    float res_norm = compute_l2_norm(d_residual, N);
+    printf("Residual L2 norm = %e\n", res_norm);
 
     // Cleanup
+    delete[] h_rhs;
+    delete[] h_phi;
+    cudaFree(d_rhs);
     cudaFree(d_phi);
     cudaFree(d_residual);
-    cudaFree(d_rhs);
+
+    return 0;
 }

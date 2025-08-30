@@ -50,6 +50,14 @@ target_include_directories(main PRIVATE
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}  # for cuda_runtime.h
 )
 
+# Link against cuFFT
+target_link_libraries(main PRIVATE cufft)
+
+# Optional: output directory
+set_target_properties(main PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
+)
+
 # Enable CUDA extended lambdas (for thrust::for_each etc.)
 target_compile_options(main PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>

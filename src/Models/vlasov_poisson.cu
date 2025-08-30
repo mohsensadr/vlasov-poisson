@@ -75,7 +75,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
 
     for (int step = 1; step < NSteps+1; ++step) {
         // compute Electric field
-        solve_poisson_jacobi(fc);
+        solve_poisson_periodic(fc);
         cudaDeviceSynchronize();
 
         // update wold given w

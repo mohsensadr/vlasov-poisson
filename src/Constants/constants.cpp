@@ -27,7 +27,7 @@ float dy = 0.01f;                      ///< Grid spacing in Y
 std::string problem = "LandauDamping"; ///< string specifying the problem
 
 // Physical constants
-float Q_OVER_M = 0.01f;     ///< Charge-to-mass ratio (q/m)
+float Q_OVER_M = 0.001f;     ///< Charge-to-mass ratio (q/m)
 
 // CUDA kernel launch configuration
 int threadsPerBlock = 256; ///< CUDA threads per block
