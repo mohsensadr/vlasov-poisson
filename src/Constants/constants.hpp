@@ -26,6 +26,7 @@ extern float Ly;               ///< Domain size in Y
 extern float dx;               ///< Grid spacing in X
 extern float dy;               ///< Grid spacing in Y
 extern std::string problem;    ///< string specifying the problem
+extern int Nm;                 ///< Number of moments
 
 // ----------------------------
 // Physical constants
@@ -37,7 +38,21 @@ extern float Q_OVER_M;    ///< Charge-to-mass ratio (q/m)
 // ----------------------------
 extern int threadsPerBlock; ///< CUDA threads per block
 extern int blocksPerGrid;   ///< CUDA blocks per grid
-extern bool Tiling;         ///< CUDA boolean for doing tiling or not
+
+enum class DepositionMode {
+    BRUTE,
+    TILING,
+    SORTING
+};
+
+extern DepositionMode depositionMode;
+
+enum class VRMode {
+    BASIC,
+    MXE
+};
+
+extern VRMode vrMode;
 
 // ----------------------------
 // Host-side constants

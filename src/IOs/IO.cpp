@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "IO.h"
-#include "constants.hpp"
+#include "IOs/IO.h"
+#include "Constants/constants.hpp"
 #include <cuda_runtime.h>
 
 namespace fs = std::filesystem;
@@ -52,6 +52,8 @@ void post_proc(FieldContainer &fc, int step){
     dump(fc.d_UxVR, "UxVR");
     dump(fc.d_UyVR, "UyVR");
     dump(fc.d_TVR, "TVR");
+    dump(fc.d_Ex, "Ex");
+    dump(fc.d_Ey, "Ey");
 
     std::cout << "Wrote postproc in step: " << step << std::endl;
 }

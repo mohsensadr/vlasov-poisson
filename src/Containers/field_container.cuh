@@ -20,11 +20,17 @@ public:
     float *d_UyVR = nullptr;
     float *d_TVR = nullptr;
 
+    float dx, dy;
+    float xmin, ymin;
     int nx, ny;
     size_t grid_size;
 
-    FieldContainer(int N_GRID_X, int N_GRID_Y) : nx(N_GRID_X), ny(N_GRID_Y) {
+    FieldContainer(int N_GRID_X, int N_GRID_Y, float Lx, float Ly) : nx(N_GRID_X), ny(N_GRID_Y) {
         grid_size = nx * ny;
+        xmin = 0.0f;
+        ymin = 0.0f;
+        dx = Lx / nx;
+        dy = Ly / ny;
         size_t bytes = grid_size * sizeof(float);
 
         cudaMalloc(&d_N, bytes);
@@ -61,8 +67,6 @@ public:
         cudaMemset(d_Ux, 0, bytes);
         cudaMemset(d_Uy, 0, bytes);
         cudaMemset(d_T, 0, bytes);
-        cudaMemset(d_Ex, 0, bytes);
-        cudaMemset(d_Ey, 0, bytes);
 
         cudaMemset(d_NVR, 0, bytes);
         cudaMemset(d_UxVR, 0, bytes);
