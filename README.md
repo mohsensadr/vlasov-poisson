@@ -43,5 +43,16 @@ mkdir bin && cd bin
 cmake ..
 make
 ```
+### Execution
+
+The compiled executabale can be run by
+```
+./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode VRMode [pdf_type] [pdf_params...]
+```
+where ```deposition_mode: brute | tiling | sorting``` and ```VRMode: basic | MXE```.
+
+For example:
+
+``` ./main 128 128 1000000 0.01 100 1.0 1.0 256 brute basic gaussian 0.5```
 
 For the command line of executioning different test cases, see the header in ```src/main.cpp```.
