@@ -45,7 +45,7 @@ make
 ```
 ### Execution
 
-The compiled executabale can be run by
+The compiled executable can be run by
 ```
 ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode VRMode [pdf_type] [pdf_params...]
 ```
