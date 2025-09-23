@@ -13,13 +13,14 @@
 #include "Models/vlasov_poisson.cuh"
 // Using simple CUDA-compatible PDF approach
 
-// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode VRMode [pdf_type] [pdf_params...]
+// ./main N_GRID_X N_GRID_Y N_PARTICLES DT NSteps Lx Ly threadsPerBlock deposition_mode VRMode RhsMode [pdf_type] [pdf_params...]
 // deposition_mode: brute | tiling | sorting
 // VRMode: basic | MXE
+// RhsMode: MC | VR
 // Examples:
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 brute basic gaussian 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 tiling MXE cosine 1.0 0.5
-// ./main 128 128 1000000 0.01 100 1.0 1.0 256 sorting basic double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 brute basic MC gaussian 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 tiling MXE VR cosine 1.0 0.5
+// ./main 128 128 1000000 0.01 100 1.0 1.0 256 sorting basic MC double_gaussian 0.1 0.2 0.3 0.4 0.7 0.6 0.5 0.5
 
 int main(int argc, char** argv) {
     if (argc > 1) N_GRID_X = std::atoi(argv[1]);
@@ -50,7 +51,7 @@ int main(int argc, char** argv) {
             depositionMode = DepositionMode::SORTING;
         } else {
             std::cerr << "Unknown deposition mode: " << mode_arg
-                      << "\nValid options: brute, tiling, sorting\n";
+                      << "\nValid options: brute | tiling | sorting\n";
             return -1;
         }
     } else {
@@ -67,23 +68,40 @@ int main(int argc, char** argv) {
             vrMode = VRMode::MXE;
         } else {
             std::cerr << "Unknown VR mode: " << mode_arg
-                      << "\nValid options: basic, mxe\n";
+                      << "\nValid options: basic | mxe\n";
             return -1;
         }
     } else {
         vrMode = VRMode::BASIC; // default
     }
 
+    if (argc > 11) {
+        std::string mode_arg(argv[11]);
+        std::transform(mode_arg.begin(), mode_arg.end(), mode_arg.begin(), ::tolower);
+
+        if (mode_arg == "mc") {
+            rhsMode = RhsMode::MC;
+        } else if (mode_arg == "vr") {
+            rhsMode = RhsMode::VR;
+        } else {
+            std::cerr << "Unknown mode for the rhs: " << mode_arg
+                      << "\nValid options: MC | VR\n";
+            return -1;
+        }
+    } else {
+        rhsMode = RhsMode::MC; // default
+    }
+
     // PDF selection
     std::string pdf_type = "gaussian";  // default
     float pdf_params[8] = {0., 0., 0., 0., 0., 0., 0., 0.};
     
-    if (argc > 11) {
-        pdf_type = argv[11];
+    if (argc > 12) {
+        pdf_type = argv[12];
         
         // Parse PDF parameters
-        for (int i = 12; i < argc; ++i) {
-            pdf_params[i-12] = std::atof(argv[i]);
+        for (int i = 13; i < argc; ++i) {
+            pdf_params[i-13] = std::atof(argv[i]);
         }
     }
 
@@ -106,6 +124,11 @@ int main(int argc, char** argv) {
         switch (vrMode) {
         case VRMode::BASIC:   std::cout << "BASIC\n"; break;
         case VRMode::MXE:  std::cout << "MXE\n"; break;
+    }
+    std::cout << "Rhs with: ";
+        switch (rhsMode) {
+        case RhsMode::MC:   std::cout << "MC\n"; break;
+        case RhsMode::VR:  std::cout << "VR\n"; break;
     }
     std::cout << "PDF Type: " << pdf_type << "\n";
     std::cout << "PDF Parameters: ";

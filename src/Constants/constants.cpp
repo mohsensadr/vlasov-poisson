@@ -34,3 +34,4 @@ int threadsPerBlock = 256; ///< CUDA threads per block
 int blocksPerGrid = 256;   ///< CUDA blocks per grid
 DepositionMode depositionMode;
 VRMode vrMode;
+RhsMode rhsMode;
