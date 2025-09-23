@@ -10,9 +10,7 @@ A CUDA/C++ implementation of the **particle-based solution** to the **Vlasov–P
 
 The **Vlasov–Poisson equation** describes the evolution of a plasma or charged particle system under self-consistent electric fields. Traditional particle-in-cell (PIC) methods can suffer from high variance due to noise. The proposed method addresses this challenge by taking advantage of the correlation between the non-equilibrium and equilibrium simulations via  **importance weights**. For example, the number density profile for Landau Damping test case at the finite time can be estimated with a lower variance compared to standard MC.
 
-![Demo](examples/LandauDamping_init.png)
-
-![Demo](examples/Damping_Ex2_Ey2.png)
+![Demo](examples/LandauDamping_t100.png)
 
 ---
 
