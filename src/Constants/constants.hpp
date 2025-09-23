@@ -54,6 +54,13 @@ enum class VRMode {
 
 extern VRMode vrMode;
 
+enum class RhsMode {
+    MC,
+    VR
+};
+
+extern RhsMode rhsMode;
+
 // ----------------------------
 // Host-side constants
 // ----------------------------
