@@ -220,24 +220,56 @@ void solve_poisson_periodic(FieldContainer& fc) {
     CUDA_CHECK(cudaMalloc(&d_phi, size*sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_residual, size*sizeof(float)));
 
+    //////////////////////////////
+    // 1. Compute MC estimate
+    //////////////////////////////
+
+    // rhs
     compute_rhs_kernel<<<gridDim, blockDim>>>(fc.d_N, d_rhs, N_GRID_X, N_GRID_Y, dx, dy);
     cudaDeviceSynchronize();
 
     float res_normalizer = compute_l2_norm(d_rhs, size); CUDA_CHECK(cudaDeviceSynchronize());
 
-    // Solve Poisson
+    // solve
     poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, d_phi);
 
-    // Compute Residual
+    // residual
     compute_residual_kernel<<<gridDim, blockDim>>>(d_phi, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    // Compute L2 norm of residual
+    // compute L2 norm of residual
     float res_norm = compute_l2_norm(d_residual, size); CUDA_CHECK(cudaDeviceSynchronize());
     res_norm /= res_normalizer;
     //printf("Residual L2 norm = %e\n", res_norm);
 
+    // compute electric fied
     compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(d_phi, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
+    cudaDeviceSynchronize();
+
+    //////////////////////////////
+    // 2. Compute VR estimate
+    //////////////////////////////
+
+    // rhs
+    compute_rhs_kernel<<<gridDim, blockDim>>>(fc.d_NVR, d_rhs, N_GRID_X, N_GRID_Y, dx, dy);
+    cudaDeviceSynchronize();
+
+    res_normalizer = compute_l2_norm(d_rhs, size); CUDA_CHECK(cudaDeviceSynchronize());
+
+    // solve
+    poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, d_phi);
+
+    // residual
+    compute_residual_kernel<<<gridDim, blockDim>>>(d_phi, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // Compute L2 norm of residual
+    res_norm = compute_l2_norm(d_residual, size); CUDA_CHECK(cudaDeviceSynchronize());
+    res_norm /= res_normalizer;
+    //printf("Residual L2 norm = %e\n", res_norm);
+
+    // compute electric fied
+    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(d_phi, fc.d_ExVR, fc.d_EyVR, N_GRID_X, N_GRID_Y, dx, dy);
     cudaDeviceSynchronize();
 
     // Cleanup
