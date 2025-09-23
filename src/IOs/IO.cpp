@@ -54,6 +54,8 @@ void post_proc(FieldContainer &fc, int step){
     dump(fc.d_TVR, "TVR");
     dump(fc.d_Ex, "Ex");
     dump(fc.d_Ey, "Ey");
+    dump(fc.d_ExVR, "ExVR");
+    dump(fc.d_EyVR, "EyVR");
 
     std::cout << "Wrote postproc in step: " << step << std::endl;
 }

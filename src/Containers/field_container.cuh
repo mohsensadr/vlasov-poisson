@@ -19,6 +19,8 @@ public:
     float *d_UxVR = nullptr;
     float *d_UyVR = nullptr;
     float *d_TVR = nullptr;
+    float *d_ExVR = nullptr;
+    float *d_EyVR = nullptr;
 
     float dx, dy;
     float xmin, ymin;
@@ -44,6 +46,8 @@ public:
         cudaMalloc(&d_UxVR, bytes);
         cudaMalloc(&d_UyVR, bytes);
         cudaMalloc(&d_TVR, bytes);
+        cudaMalloc(&d_ExVR, bytes);
+        cudaMalloc(&d_EyVR, bytes);
     }
 
     ~FieldContainer() {
@@ -58,6 +62,8 @@ public:
         cudaFree(d_UxVR);
         cudaFree(d_UyVR);
         cudaFree(d_TVR);
+        cudaFree(d_ExVR);
+        cudaFree(d_EyVR);
     }
 
     // Optional: zero out all field arrays
