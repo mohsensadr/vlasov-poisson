@@ -34,7 +34,8 @@ struct PDF_position {
         : type(1), Lx(length_x), Ly(length_y) {
         params[0] = amplitude;
         params[1] = wavenumber;
-        params[2] = (params[0] * sinf(Lx * wavenumber) + Lx * wavenumber) / wavenumber ;
+        params[2]  = (params[0] * sinf(Lx * wavenumber) + Lx * wavenumber) / wavenumber ;
+        params[2] *= (params[0] * sinf(Ly * wavenumber) + Ly * wavenumber) / wavenumber ;
     }
     
     // Constructor for Double Gaussian
@@ -57,7 +58,7 @@ struct PDF_position {
             case 0: // gaussian
                 return 1.0;
             case 1: // cosine
-                return (params[0] * sinf(Lx * params[1]) + Lx * params[1]) / params[1] * 1.0f / Ly;
+                return (params[0] * sinf(Lx * params[1]) + Lx * params[1]) / params[1] * (params[0] * sinf(Ly * params[1]) + Ly * params[1]) / params[1];
             case 2: // double_gaussian
                 return 2.0f * PI_F * (params[6] * params[0] + params[7] * params[1]);
             default:
@@ -70,7 +71,7 @@ struct PDF_position {
             case 0: // gaussian
                 return 1.0f / (2.0f * PI_F * params[0]);
             case 1: // cosine
-                return  (1.0f + params[0]) / params[2] * (1.0f / Ly);
+                return  (1.0f + params[0]) / params[2] * (1.0f + params[0]) / params[2];
             case 2: // double_gaussian
                 return 1.0f;
             default:
@@ -86,7 +87,7 @@ struct PDF_position {
                 return expf(-(dx*dx + dy*dy)/(2.0f*params[0])) / (2.0f * PI_F * params[0] );
             }
             case 1: // cosine
-                return (1.0f + params[0] * cosf(params[1] * x)) / params[2] * (1.0f / Ly);
+                return (1.0f + params[0] * cosf(params[1] * x)) / params[2] * (1.0f + params[0] * cosf(params[1] * y)) / params[2];
             case 2: { // double_gaussian
                 float g1 = params[6] * expf(-((x-params[2])*(x-params[2]) + (y-params[3])*(y-params[3]))/(2.0f*params[0]));
                 float g2 = params[7] * expf(-((x-params[4])*(x-params[4]) + (y-params[5])*(y-params[5]))/(2.0f*params[1]));
