@@ -14,11 +14,15 @@ __global__ void update_weights(
     const int* __restrict__ d_cell_offsets,
     float* __restrict__ w,
     float* __restrict__ wold,
+    float* __restrict__ NVR,
     float* __restrict__ UxVR,
     float* __restrict__ UyVR,
-    int num_cells
+    float* __restrict__ ExVR,
+    float* __restrict__ EyVR,
+    int num_cells,
+    int n_particles,
+    float dt
 );
-
 
 void update_weights_dispatch(
     const float* vx,
@@ -26,8 +30,11 @@ void update_weights_dispatch(
     const int* d_cell_offsets,
     float* w,
     float* wold,
+    float* NVR,
     float* UxVR,
     float* UyVR,
+    float* ExVR,
+    float* EyVR,
     int num_cells,
     int Nm
 );
