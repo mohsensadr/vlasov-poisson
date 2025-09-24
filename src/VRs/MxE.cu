@@ -27,7 +27,7 @@ __device__ float mom(float u1, float u2, float U_1, float U_2, int n) {
     switch(n) {
         case 0: return u1 - U_1;
         case 1: return u2 - U_2;
-        case 2: return 0.5f * ((u1 - U_1) * (u1 - U_1) + (u2 - U_2) * (u2 - U_2));
+        case 2: return (u1 - U_1) * (u1 - U_1) + (u2 - U_2) * (u2 - U_2);
     }
     return 0.0f;
 }
@@ -39,13 +39,19 @@ __global__ void update_weights(
     const int* __restrict__ d_cell_offsets,
     float* __restrict__ w,
     float* __restrict__ wold,
+    float* __restrict__ NVR,
     float* __restrict__ UxVR,
     float* __restrict__ UyVR,
-    int num_cells
+    float* __restrict__ ExVR,
+    float* __restrict__ EyVR,
+    int num_cells,
+    int n_particles,
+    float dt
 ) {
     int cell = blockIdx.x * blockDim.x + threadIdx.x;
     if (cell >= num_cells) return;
 
+    float Navg = float(n_particles) / float(num_cells);
     float tol = 1e-5f;
     int start = d_cell_offsets[cell];
     int end   = d_cell_offsets[cell + 1];
@@ -56,31 +62,50 @@ __global__ void update_weights(
     float p[Nm] = {0.0f};
     float pt[Nm] = {0.0f};
     float p0[Nm] = {0.0f};
-    p0[2] = 1.0f;
+    p0[2] = 2.0f;
 
     float sumwold = 0.0f;
 
     for (int i = start; i < end; i++) {
         sumwold += wold[i];
         for (int j = 0; j < Nm; j++) {
-            p[j] += mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
-            pt[j] += (1.0f - wold[i]) * mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+            p[j] += mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
+            pt[j] += (1.0f - wold[i]) * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
         }
     }
 
     for (int i = 0; i < Nm; i++) {
         p[i] /= Npc;
-        pt[i] /= Npc;
-        pt[i] += p0[i];
+        pt[i] /= NVR[cell];
+        //printf("p[%d]=%f | ", i, p[i]);
+        //printf("inter1 pt[%d]=%f | ", i, pt[i]);
     }
 
+    for (int i = 0; i < Nm; i++) {
+        pt[i] += p0[i];
+        //printf("inter2 pt[%d]=%f |", i, pt[i]);
+    }
+
+    // correct moments using Ex and Ey
+    pt[0] -= dt * ExVR[cell];
+    pt[1] -= dt * EyVR[cell];
+    pt[2] -= dt * (UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]);
+
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("inter3 pt[%d]=%f | ", i, pt[i]);
+    //}
+    //printf("\n\n dt * ExVR[%d]=%f | ", cell, dt * ExVR[cell]);
+    //printf("dt * EyVR[%d]=%f | ", cell, dt * EyVR[cell]);
+    //printf("\ndt * (UxVR[%d]*ExVR[.] + UyVR[.]*EyVR[.]) = %f", cell, dt * (UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]));
+
     // now compute target <w*R(v)> moments: 
-    // <R(v)>VR (target) = <R(v)>0 + <(1-w)*R(v)> 
+    // <R(v)>VR = <R(v)>0 + <(1-w)*R(v)> 
     // = <R(v)>0 + <R(v)> - <w*R(v)> 
     // which implies: <w*R(v)> = <R(v)>0 + <R(v)> - <R(v)>VR 
     // here we reuse variable p to denote <w*R(v)> from this point on
     for (int i = 0; i < Nm; i++) {
         p[i] = p0[i] + p[i] - pt[i];
+        //printf("\n\n final target moment p[%d]=%f |", i, p[i]);
     }
 
     for (int i = start; i < end; i++)
@@ -167,15 +192,18 @@ void update_weights_dispatch(
     const int* d_cell_offsets,
     float* w,
     float* wold,
+    float* NVR,
     float* UxVR,
     float* UyVR,
+    float* ExVR,
+    float* EyVR,
     int num_cells,
     int Nm
 ) {
 
     switch (Nm) {
         case 3:
-            update_weights<3><<<blocksPerGrid, threadsPerBlock>>>(vx, vy, d_cell_offsets, w, wold, UxVR, UyVR, num_cells);
+            update_weights<3><<<blocksPerGrid, threadsPerBlock>>>(vx, vy, d_cell_offsets, w, wold, NVR, UxVR, UyVR, ExVR, EyVR, num_cells, N_PARTICLES, DT);
             break;
         // Add more cases as needed
         default:

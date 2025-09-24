@@ -100,7 +100,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
 
         // MxE to conserve equil. moments.
         if (vrMode == VRMode::MXE) {
-          update_weights_dispatch(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, pc.d_w, pc.d_wold, fc.d_UxVR, fc.d_UyVR, grid_size, Nm);
+          update_weights_dispatch(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, pc.d_w, pc.d_wold, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_ExVR, fc.d_EyVR, grid_size, Nm);
           cudaDeviceSynchronize();
         }
         
