@@ -12,7 +12,7 @@
 
 namespace fs = std::filesystem;
 
-void write_to_csv(const std::string& filename, float *x) {
+void write_to_csv(const std::string& filename, float_type *x) {
     std::ofstream out(filename);
     for (int j = 0; j < N_GRID_Y; ++j) {
         for (int i = 0; i < N_GRID_X; ++i) {
@@ -24,7 +24,7 @@ void write_to_csv(const std::string& filename, float *x) {
     out.close();
 }
 
-void write_output(int step, float* x, std::string s) {
+void write_output(int step, float_type* x, std::string s) {
     std::ostringstream oss;
     fs::create_directories("data");
     oss << "data/" << s << "_step_" << std::setw(3) << std::setfill('0') << step << ".csv";
@@ -33,10 +33,10 @@ void write_output(int step, float* x, std::string s) {
 
 void post_proc(FieldContainer &fc, int step){
 
-    std::vector<float> h_var(grid_size);
+    std::vector<float_type> h_var(grid_size);
 
-    auto dump = [&](float* device_ptr, const std::string& label) {
-        cudaError_t err = cudaMemcpy(h_var.data(), device_ptr, sizeof(float) * grid_size, cudaMemcpyDeviceToHost);
+    auto dump = [&](float_type* device_ptr, const std::string& label) {
+        cudaError_t err = cudaMemcpy(h_var.data(), device_ptr, sizeof(float_type) * grid_size, cudaMemcpyDeviceToHost);
         if (err != cudaSuccess) {
             std::cerr << "CUDA memcpy failed: " << cudaGetErrorString(err) << std::endl;
             return;

@@ -8,32 +8,32 @@
 
 class FieldContainer {
 public:
-    float *d_N = nullptr;
-    float *d_Ux = nullptr;
-    float *d_Uy = nullptr;
-    float *d_T = nullptr;
-    float *d_Ex = nullptr;
-    float *d_Ey = nullptr;
+    float_type *d_N = nullptr;
+    float_type *d_Ux = nullptr;
+    float_type *d_Uy = nullptr;
+    float_type *d_T = nullptr;
+    float_type *d_Ex = nullptr;
+    float_type *d_Ey = nullptr;
 
-    float *d_NVR = nullptr;
-    float *d_UxVR = nullptr;
-    float *d_UyVR = nullptr;
-    float *d_TVR = nullptr;
-    float *d_ExVR = nullptr;
-    float *d_EyVR = nullptr;
+    float_type *d_NVR = nullptr;
+    float_type *d_UxVR = nullptr;
+    float_type *d_UyVR = nullptr;
+    float_type *d_TVR = nullptr;
+    float_type *d_ExVR = nullptr;
+    float_type *d_EyVR = nullptr;
 
-    float dx, dy;
-    float xmin, ymin;
+    float_type dx, dy;
+    float_type xmin, ymin;
     int nx, ny;
     size_t grid_size;
 
-    FieldContainer(int N_GRID_X, int N_GRID_Y, float Lx, float Ly) : nx(N_GRID_X), ny(N_GRID_Y) {
+    FieldContainer(int N_GRID_X, int N_GRID_Y, float_type Lx, float_type Ly) : nx(N_GRID_X), ny(N_GRID_Y) {
         grid_size = nx * ny;
-        xmin = 0.0f;
-        ymin = 0.0f;
+        xmin = 0.0;
+        ymin = 0.0;
         dx = Lx / nx;
         dy = Ly / ny;
-        size_t bytes = grid_size * sizeof(float);
+        size_t bytes = grid_size * sizeof(float_type);
 
         cudaMalloc(&d_N, bytes);
         cudaMalloc(&d_Ux, bytes);
@@ -68,7 +68,7 @@ public:
 
     // Optional: zero out all field arrays
     void setZero() {
-        size_t bytes = grid_size * sizeof(float);
+        size_t bytes = grid_size * sizeof(float_type);
         cudaMemset(d_N, 0, bytes);
         cudaMemset(d_Ux, 0, bytes);
         cudaMemset(d_Uy, 0, bytes);

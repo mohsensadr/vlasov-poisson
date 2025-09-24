@@ -29,99 +29,99 @@ struct PDF_Template {
 // Gaussian PDF specialization
 template<>
 struct PDF_Template<PDFType::GAUSSIAN> {
-    float var;
-    float Lx, Ly;
+    float_type var;
+    float_type Lx, Ly;
 
-    __device__ __host__ PDF_Template(float variance, float length_x, float length_y)
+    __device__ __host__ PDF_Template(float_type variance, float_type length_x, float_type length_y)
         : var(variance), Lx(length_x), Ly(length_y) {}
 
-    __device__ __host__ float normalizer() const {
-        return 2.0f * M_PI * var;
+    __device__ __host__ float_type normalizer() const {
+        return 2.0 * M_PI * var;
     }
 
-    __device__ __host__ float pmax() const {
-        return 1.0f;
+    __device__ __host__ float_type pmax() const {
+        return 1.0;
     }
 
-    __device__ __host__ float operator()(float x, float y) const {
-        float dx = x - Lx/2.0f;
-        float dy = y - Ly/2.0f;
-        return expf(-(dx*dx + dy*dy)/(2.0f*var));
+    __device__ __host__ float_type operator()(float_type x, float_type y) const {
+        float_type dx = x - Lx/2.0;
+        float_type dy = y - Ly/2.0;
+        return exp(-(dx*dx + dy*dy)/(2.0*var));
     }
 };
 
 // Cosine PDF specialization
 template<>
 struct PDF_Template<PDFType::COSINE> {
-    float A;
-    float kx;
-    float Lx, Ly;
+    float_type A;
+    float_type kx;
+    float_type Lx, Ly;
 
-    __device__ __host__ PDF_Template(float amplitude, float wavenumber, float length_x, float length_y)
+    __device__ __host__ PDF_Template(float_type amplitude, float_type wavenumber, float_type length_x, float_type length_y)
         : A(amplitude), kx(wavenumber), Lx(length_x), Ly(length_y) {}
 
-    __device__ __host__ float normalizer() const {
-        return (A * sinf(Lx * kx) + Lx * kx) / kx;
+    __device__ __host__ float_type normalizer() const {
+        return (A * sin(Lx * kx) + Lx * kx) / kx;
     }
 
-    __device__ __host__ float pmax() const {
-        return (1.0f + A) / normalizer() * (1.0f / Ly);
+    __device__ __host__ float_type pmax() const {
+        return (1.0 + A) / normalizer() * (1.0 / Ly);
     }
 
-    __device__ __host__ float operator()(float x, float y) const {
-        return (1.0f + A * cosf(kx * x)) / normalizer() * (1.0f / Ly);
+    __device__ __host__ float_type operator()(float_type x, float_type y) const {
+        return (1.0 + A * cos(kx * x)) / normalizer() * (1.0 / Ly);
     }
 };
 
 // Uniform PDF specialization
 template<>
 struct PDF_Template<PDFType::UNIFORM> {
-    float Lx, Ly;
+    float_type Lx, Ly;
 
-    __device__ __host__ PDF_Template(float length_x, float length_y)
+    __device__ __host__ PDF_Template(float_type length_x, float_type length_y)
         : Lx(length_x), Ly(length_y) {}
 
-    __device__ __host__ float normalizer() const {
+    __device__ __host__ float_type normalizer() const {
         return Lx * Ly;
     }
 
-    __device__ __host__ float pmax() const {
-        return 1.0f / (Lx * Ly);
+    __device__ __host__ float_type pmax() const {
+        return 1.0 / (Lx * Ly);
     }
 
-    __device__ __host__ float operator()(float x, float y) const {
-        return 1.0f / (Lx * Ly);
+    __device__ __host__ float_type operator()(float_type x, float_type y) const {
+        return 1.0 / (Lx * Ly);
     }
 };
 
 // Double Gaussian PDF specialization
 template<>
 struct PDF_Template<PDFType::DOUBLE_GAUSSIAN> {
-    float var1, var2;
-    float x1, y1, x2, y2;
-    float weight1, weight2;
-    float Lx, Ly;
+    float_type var1, var2;
+    float_type x1, y1, x2, y2;
+    float_type weight1, weight2;
+    float_type Lx, Ly;
 
-    __device__ __host__ PDF_Template(float variance1, float variance2, 
-                                   float center1_x, float center1_y,
-                                   float center2_x, float center2_y,
-                                   float w1, float w2,
-                                   float length_x, float length_y)
+    __device__ __host__ PDF_Template(float_type variance1, float_type variance2, 
+                                   float_type center1_x, float_type center1_y,
+                                   float_type center2_x, float_type center2_y,
+                                   float_type w1, float_type w2,
+                                   float_type length_x, float_type length_y)
         : var1(variance1), var2(variance2), 
           x1(center1_x), y1(center1_y), x2(center2_x), y2(center2_y),
           weight1(w1), weight2(w2), Lx(length_x), Ly(length_y) {}
 
-    __device__ __host__ float normalizer() const {
-        return 2.0f * M_PI * (weight1 * var1 + weight2 * var2);
+    __device__ __host__ float_type normalizer() const {
+        return 2.0 * M_PI * (weight1 * var1 + weight2 * var2);
     }
 
-    __device__ __host__ float pmax() const {
-        return 1.0f;
+    __device__ __host__ float_type pmax() const {
+        return 1.0;
     }
 
-    __device__ __host__ float operator()(float x, float y) const {
-        float g1 = weight1 * expf(-((x-x1)*(x-x1) + (y-y1)*(y-y1))/(2.0f*var1));
-        float g2 = weight2 * expf(-((x-x2)*(x-x2) + (y-y2)*(y-y2))/(2.0f*var2));
+    __device__ __host__ float_type operator()(float_type x, float_type y) const {
+        float_type g1 = weight1 * exp(-((x-x1)*(x-x1) + (y-y1)*(y-y1))/(2.0*var1));
+        float_type g2 = weight2 * exp(-((x-x2)*(x-x2) + (y-y2)*(y-y2))/(2.0*var2));
         return g1 + g2;
     }
 };

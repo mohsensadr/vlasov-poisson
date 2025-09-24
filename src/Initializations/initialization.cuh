@@ -19,9 +19,9 @@
  * @param pdf PDF functor to use for rejection sampling
  */
 template<typename PDF>
-__global__ void initialize_particles(float *x, float *y,
-                                     float *vx, float *vy,
-                                     float Lx, float Ly,
+__global__ void initialize_particles(float_type *x, float_type *y,
+                                     float_type *vx, float_type *vy,
+                                     float_type Lx, float_type Ly,
                                      int N, PDF pdf) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= N) return;
@@ -29,16 +29,16 @@ __global__ void initialize_particles(float *x, float *y,
     curandState state;
     curand_init(1234ULL, i, 0, &state);
 
-    float x_sample = 0.0f, y_sample = 0.0f;
+    float_type x_sample = 0.0, y_sample = 0.0;
     bool accepted = false;
 
-    float p_max = pdf.pmax();
+    float_type p_max = pdf.pmax();
 
     for (int attempt = 0; attempt < 1000 && !accepted; ++attempt) {
-        float x_try = Lx * curand_uniform(&state);
-        float y_try = Ly * curand_uniform(&state);
-        float u = curand_uniform(&state);
-        float p = pdf(x_try, y_try);
+        float_type x_try = Lx * curand_uniform(&state);
+        float_type y_try = Ly * curand_uniform(&state);
+        float_type u = curand_uniform(&state);
+        float_type p = pdf(x_try, y_try);
         if (u < p / p_max) {
             x_sample = x_try;
             y_sample = y_try;
@@ -75,22 +75,22 @@ __global__ void initialize_particles(float *x, float *y,
  * @param pdf PDF functor to use for target density
  */
 template<typename PDF>
-__global__ void initialize_weights(float *x, float *y, float *N, float *w,
+__global__ void initialize_weights(float_type *x, float_type *y, float_type *N, float_type *w,
                                    int Ntotal, int N_GRID_X, int N_GRID_Y,
-                                   float Lx, float Ly, PDF pdf) {
+                                   float_type Lx, float_type Ly, PDF pdf) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= Ntotal) return;
 
-    float dx = Lx / N_GRID_X;
-    float dy = Ly / N_GRID_Y;
+    float_type dx = Lx / N_GRID_X;
+    float_type dy = Ly / N_GRID_Y;
 
     int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
     int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
     int idx = ix + iy * N_GRID_X;
 
-    float Nemp = N[idx];
-    float Navg = float(Ntotal) / (N_GRID_X * N_GRID_Y);
-    float Ntarget = pdf(x[i], y[i]) * dx * dy * Ntotal;
+    float_type Nemp = N[idx];
+    float_type Navg = float_type(Ntotal) / (N_GRID_X * N_GRID_Y);
+    float_type Ntarget = pdf(x[i], y[i]) * dx * dy * Ntotal;
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }

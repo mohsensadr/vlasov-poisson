@@ -11,7 +11,7 @@
  * @param filename Output file name (with path).
  * @param x Pointer to the flattened array (row-major order).
  */
-void write_to_csv(const std::string& filename, float* x);
+void write_to_csv(const std::string& filename, float_type* x);
 
 /**
  * @brief Write a field (host array) to the `data/` folder for a given simulation step.
@@ -22,7 +22,7 @@ void write_to_csv(const std::string& filename, float* x);
  * @param x Pointer to the host data array.
  * @param label Variable label for the output filename.
  */
-void write_output(int step, float* x, std::string s);
+void write_output(int step, float_type* x, std::string s);
 
 /**
  * @brief Post-process and dump several fields (copied from device to host).

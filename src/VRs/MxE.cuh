@@ -1,6 +1,19 @@
 #pragma once
 #include <cuda_runtime.h>
 
+template <typename T>
+struct Tolerance;
+
+template <>
+struct Tolerance<float> {
+    static __device__ __host__ inline float value() { return 1e-4f; }
+};
+
+template <>
+struct Tolerance<double> {
+    static __device__ __host__ inline double value() { return 1e-8; }
+};
+
 template<int Nm>
 __device__ void Gauss_Jordan(float H[Nm][Nm], float g[Nm], float x[Nm]);
 

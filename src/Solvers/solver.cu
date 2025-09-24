@@ -18,32 +18,32 @@
 // Kernel: scale spectrum (solve in Fourier space)
 // ---------------------------------------------
 __global__ void scale_kernel(const cufftComplex* rhs_hat, cufftComplex* phi_hat,
-                             int NX, int NY, float dx, float dy) {
+                             int NX, int NY, float_type dx, float_type dy) {
     int kx = blockIdx.x * blockDim.x + threadIdx.x;
     int ky = blockIdx.y * blockDim.y + threadIdx.y;
     if (kx >= NX/2+1 || ky >= NY) return;
 
     int idx = ky * (NX/2+1) + kx;
 
-    float kx_val = 2.0f * M_PI * ((kx <= NX/2) ? kx : kx - NX) / (NX * dx);
-    float ky_val = 2.0f * M_PI * ((ky <= NY/2) ? ky : ky - NY) / (NY * dy);
+    float_type kx_val = 2.0 * M_PI * ((kx <= NX/2) ? kx : kx - NX) / (NX * dx);
+    float_type ky_val = 2.0 * M_PI * ((ky <= NY/2) ? ky : ky - NY) / (NY * dy);
 
-    float denom = (kx_val*kx_val + ky_val*ky_val);
+    float_type denom = (kx_val*kx_val + ky_val*ky_val);
 
-    if (denom > 1e-14f) {
+    if (denom > 1e-14) {
         phi_hat[idx].x = rhs_hat[idx].x / denom;
         phi_hat[idx].y = rhs_hat[idx].y / denom;
     } else {
         // Zero-frequency mode -> set to 0 (fix nullspace)
-        phi_hat[idx].x = 0.0f;
-        phi_hat[idx].y = 0.0f;
+        phi_hat[idx].x = 0.0;
+        phi_hat[idx].y = 0.0;
     }
 }
 
 // ---------------------------------------------
 // Kernel: scale real field (normalize after iFFT)
 // ---------------------------------------------
-__global__ void scale_real_kernel(float* arr, float alpha, int N) {
+__global__ void scale_real_kernel(float_type* arr, float_type alpha, int N) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N) arr[idx] *= alpha;
 }
@@ -51,8 +51,8 @@ __global__ void scale_real_kernel(float* arr, float alpha, int N) {
 // ---------------------------------------------
 // Kernel: compute residual r = Laplacian(phi) + N
 // ---------------------------------------------
-__global__ void compute_residual_kernel(const float *phi, const float *d_rhs, float *residual,
-                                        int NX, int NY, float dx, float dy) {
+__global__ void compute_residual_kernel(const float_type *phi, const float_type *d_rhs, float_type *residual,
+                                        int NX, int NY, float_type dx, float_type dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -69,8 +69,8 @@ __global__ void compute_residual_kernel(const float *phi, const float *d_rhs, fl
     int idx_jm = jm * NX + i;
     int idx_jp = jp * NX + i;
 
-    float lap = (phi[idx_im] - 2.0f*phi[idx] + phi[idx_ip]) / (dx*dx)
-              + (phi[idx_jm] - 2.0f*phi[idx] + phi[idx_jp]) / (dy*dy);
+    float_type lap = (phi[idx_im] - 2.0*phi[idx] + phi[idx_ip]) / (dx*dx)
+              + (phi[idx_jm] - 2.0*phi[idx] + phi[idx_jp]) / (dy*dy);
 
     residual[idx] = lap + d_rhs[idx];
 }
@@ -78,18 +78,18 @@ __global__ void compute_residual_kernel(const float *phi, const float *d_rhs, fl
 // ---------------------------------------------
 // Kernel: reduction for L2 norm
 // ---------------------------------------------
-__global__ void l2_reduce_kernel(const float* vec, float* block_sums, int N) {
-    extern __shared__ float sdata[];
+__global__ void l2_reduce_kernel(const float_type* vec, float_type* block_sums, int N) {
+    extern __shared__ float_type sdata[];
     unsigned int tid = threadIdx.x;
     unsigned int idx = blockIdx.x * blockDim.x * 2 + threadIdx.x;
 
-    float sum = 0.0f;
+    float_type sum = 0.0;
     if (idx < N) {
-        float v = vec[idx];
+        float_type v = vec[idx];
         sum += v*v;
     }
     if (idx + blockDim.x < N) {
-        float v = vec[idx + blockDim.x];
+        float_type v = vec[idx + blockDim.x];
         sum += v*v;
     }
     sdata[tid] = sum;
@@ -103,18 +103,18 @@ __global__ void l2_reduce_kernel(const float* vec, float* block_sums, int N) {
     if (tid == 0) block_sums[blockIdx.x] = sdata[0];
 }
 
-float compute_l2_norm(const float* d_vec, int N, int threads=256) {
+float_type compute_l2_norm(const float_type* d_vec, int N, int threads=256) {
     int blocks = (N + threads*2 - 1) / (threads*2);
-    float* d_block_sums;
-    CUDA_CHECK(cudaMalloc(&d_block_sums, blocks * sizeof(float)));
+    float_type* d_block_sums;
+    CUDA_CHECK(cudaMalloc(&d_block_sums, blocks * sizeof(float_type)));
 
-    l2_reduce_kernel<<<blocks, threads, threads*sizeof(float)>>>(d_vec, d_block_sums, N);
+    l2_reduce_kernel<<<blocks, threads, threads*sizeof(float_type)>>>(d_vec, d_block_sums, N);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    float* h_block_sums = new float[blocks];
-    CUDA_CHECK(cudaMemcpy(h_block_sums, d_block_sums, blocks*sizeof(float), cudaMemcpyDeviceToHost));
+    float_type* h_block_sums = new float_type[blocks];
+    CUDA_CHECK(cudaMemcpy(h_block_sums, d_block_sums, blocks*sizeof(float_type), cudaMemcpyDeviceToHost));
 
-    float sum = 0.0f;
+    float_type sum = 0.0;
     for (int i=0; i<blocks; i++) sum += h_block_sums[i];
 
     delete[] h_block_sums;
@@ -126,8 +126,8 @@ float compute_l2_norm(const float* d_vec, int N, int threads=256) {
 // ---------------------------------------------
 // Direct Poisson solver using cuFFT
 // ---------------------------------------------
-void poisson_fft_solver(int NX, int NY, float dx, float dy,
-                        float* d_rhs, float* d_phi) {
+void poisson_fft_solver(int NX, int NY, float_type dx, float_type dy,
+                        float_type* d_rhs, float_type* d_phi) {
     cufftHandle planR2C, planC2R;
     cufftPlan2d(&planR2C, NY, NX, CUFFT_R2C);
     cufftPlan2d(&planC2R, NY, NX, CUFFT_C2R);
@@ -151,7 +151,7 @@ void poisson_fft_solver(int NX, int NY, float dx, float dy,
 
     // Normalize
     int size = NX*NY;
-    float alpha = 1.0f / float(size);
+    float_type alpha = 1.0 / float_type(size);
     scale_real_kernel<<<(size+255)/256, 256>>>(d_phi, alpha, size);
 
     cufftDestroy(planR2C);
@@ -164,8 +164,8 @@ static __device__ int periodic_index(int i, int N) {
     return (i + N) % N;
 }
 
-__global__ void compute_electric_field_kernel_periodic(const float *phi, float *Ex, float *Ey,
-                                              int N_GRID_X, int N_GRID_Y, float dx, float dy) {
+__global__ void compute_electric_field_kernel_periodic(const float_type *phi, float_type *Ex, float_type *Ey,
+                                              int N_GRID_X, int N_GRID_Y, float_type dx, float_type dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -181,12 +181,12 @@ __global__ void compute_electric_field_kernel_periodic(const float *phi, float *
         int idx_jp = jp * N_GRID_X + i;
         int idx_jm = jm * N_GRID_X + i;
 
-        Ex[idx] = -(phi[idx_ip] - phi[idx_im]) / (2.0f * dx);
-        Ey[idx] = -(phi[idx_jp] - phi[idx_jm]) / (2.0f * dy);
+        Ex[idx] = -(phi[idx_ip] - phi[idx_im]) / (2.0 * dx);
+        Ey[idx] = -(phi[idx_jp] - phi[idx_jm]) / (2.0 * dy);
     }
 }
 
-__global__ void compute_rhs_kernel(const float* d_N, float* d_rhs, int NX, int NY, float dx, float dy) {
+__global__ void compute_rhs_kernel(const float_type* d_N, float_type* d_rhs, int NX, int NY, float_type dx, float_type dy) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -196,9 +196,9 @@ __global__ void compute_rhs_kernel(const float* d_N, float* d_rhs, int NX, int N
     d_rhs[idx] = d_N[idx] / (dx * dy);
 
     // for debugging:
-    //float x = i*dx;
-    //float y = j*dy;
-    //d_rhs[idx] = sinf(2*M_PI*x) * sinf(2*M_PI*y);
+    //float_type x = i*dx;
+    //float_type y = j*dy;
+    //d_rhs[idx] = sin(2*M_PI*x) * sin(2*M_PI*y);
 
 }
 
@@ -214,11 +214,11 @@ void solve_poisson_periodic(FieldContainer& fc) {
     );
 
     int size = N_GRID_X * N_GRID_Y;
-    float *d_rhs, *d_phi, *d_residual;
+    float_type *d_rhs, *d_phi, *d_residual;
 
-    CUDA_CHECK(cudaMalloc(&d_rhs, size*sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_phi, size*sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_residual, size*sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_rhs, size*sizeof(float_type)));
+    CUDA_CHECK(cudaMalloc(&d_phi, size*sizeof(float_type)));
+    CUDA_CHECK(cudaMalloc(&d_residual, size*sizeof(float_type)));
 
     //////////////////////////////
     // 1. Compute MC estimate
@@ -228,7 +228,7 @@ void solve_poisson_periodic(FieldContainer& fc) {
     compute_rhs_kernel<<<gridDim, blockDim>>>(fc.d_N, d_rhs, N_GRID_X, N_GRID_Y, dx, dy);
     cudaDeviceSynchronize();
 
-    float res_normalizer = compute_l2_norm(d_rhs, size); CUDA_CHECK(cudaDeviceSynchronize());
+    float_type res_normalizer = compute_l2_norm(d_rhs, size); CUDA_CHECK(cudaDeviceSynchronize());
 
     // solve
     poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, d_phi);
@@ -238,7 +238,7 @@ void solve_poisson_periodic(FieldContainer& fc) {
     CUDA_CHECK(cudaDeviceSynchronize());
 
     // compute L2 norm of residual
-    float res_norm = compute_l2_norm(d_residual, size); CUDA_CHECK(cudaDeviceSynchronize());
+    float_type res_norm = compute_l2_norm(d_residual, size); CUDA_CHECK(cudaDeviceSynchronize());
     res_norm /= res_normalizer;
     //printf("Residual L2 norm = %e\n", res_norm);
 
