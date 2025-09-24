@@ -2,6 +2,7 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <stdexcept>
+#include "Constants/constants.hpp"
 
 #define TILE_X 16
 #define TILE_Y 16

@@ -26,6 +26,9 @@ set(CMAKE_CUDA_ARCHITECTURES 70)
 set(FLOAT_TYPE "float" CACHE STRING "Floating point type (float or double)")
 message(STATUS "Using FLOAT_TYPE=${FLOAT_TYPE}")
 
+# Set the source directory
+set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
+
 # Define source files explicitly
 set(SOURCES
     ${SRC_DIR}/main.cpp
@@ -55,7 +58,7 @@ target_include_directories(main PRIVATE
 target_compile_definitions(main PRIVATE FLOAT_TYPE=${FLOAT_TYPE})
 
 # Link against cuFFT
-target_link_libraries(main PRIVATE cufft
+target_link_libraries(main PRIVATE cufft)
 
 # Optional: output directory
 set_target_properties(main PROPERTIES
