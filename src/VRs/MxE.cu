@@ -125,7 +125,7 @@ __global__ void update_weights(
         for (int j = 0; j < Nm; j++) {
             g[j] = 0.0;
             for (int i = start; i < end; i++)
-                g[j] += w[i] * mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+                g[j] += w[i] * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
             g[j] = g[j]/Npc - p[j];
             res += fabsf(g[j]);
         }
@@ -143,8 +143,8 @@ __global__ void update_weights(
             for (int j = k; j < Nm; j++) {
                 float_type Ski = 0.0, Sji = 0.0, SkiSji = 0.0;
                 for (int i = start; i < end; i++) {
-                    float_type mk = mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], k);
-                    float_type mj = mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+                    float_type mk = mom<Nm>(vx[i], vy[i], 0.0, 0.0, k);
+                    float_type mj = mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
                     Ski += mk * w[i];
                     Sji += mj * w[i];
                     SkiSji += mk * mj * w[i];
@@ -168,7 +168,7 @@ __global__ void update_weights(
         for (int i = start; i < end; i++) {
             float_type dummy = 0.0;
             for (int j = 0; j < Nm; j++)
-                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j)-p[j]);
+                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], 0.0, 0.0, j)-p[j]);
             float_type dummy2 = expf(-dummy);
             w[i] = wold[i] / dummy2;
             sumW += w[i];
