@@ -7,7 +7,7 @@ struct Tolerance;
 
 template <>
 struct Tolerance<float> {
-    static __device__ __host__ inline float value() { return 1e-4f; }
+    static __device__ __host__ inline float_type value() { return 1e-4f; }
 };
 
 template <>
@@ -17,9 +17,6 @@ struct Tolerance<double> {
 
 template<int Nm>
 __device__ void Gauss_Jordan(float_type H[Nm][Nm], float_type g[Nm], float_type x[Nm]);
-
-//template<int Nm>
-//__device__ float mom(float_type u1, float_type u2, float_type U_1, float_type U_2, int n);
 
 template<int Nm>
 __global__ void update_weights(

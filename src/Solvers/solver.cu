@@ -26,6 +26,7 @@ template<>
 struct cufft_traits<float> {
     using real_t    = cufftReal;
     using complex_t = cufftComplex;
+    static constexpr real_t EPS = 1e-7f;
     static cufftResult exec_forward(cufftHandle plan, real_t* in, complex_t* out) {
         return cufftExecR2C(plan, in, out);
     }
@@ -38,6 +39,7 @@ template<>
 struct cufft_traits<double> {
     using real_t    = cufftDoubleReal;
     using complex_t = cufftDoubleComplex;
+    static constexpr real_t EPS = 1e-14;
     static cufftResult exec_forward(cufftHandle plan, real_t* in, complex_t* out) {
         return cufftExecD2Z(plan, in, out);
     }
@@ -183,7 +185,7 @@ void poisson_fft_solver(int NX, int NY, float_type dx, float_type dy,
     CUDA_CHECK(cudaMalloc(&d_phi_hat, sizeof(complex_t)*nComplex));
 
     // Forward FFT
-    CUDA_CHECK(traits::exec_forward(planR2C, (real_t*)d_rhs, d_rhs_hat));
+    CUFFT_CHECK(traits::exec_forward(planR2C, (real_t*)d_rhs, d_rhs_hat));
 
     // Solve in spectral space
     dim3 threads2D(16,16);
@@ -191,7 +193,7 @@ void poisson_fft_solver(int NX, int NY, float_type dx, float_type dy,
     scale_kernel<<<blocks2D, threads2D>>>(d_rhs_hat, d_phi_hat, NX, NY, dx, dy);
 
     // Inverse FFT
-    CUDA_CHECK(traits::exec_inverse(planC2R, d_phi_hat, (real_t*)d_phi));
+    CUFFT_CHECK(traits::exec_inverse(planC2R, d_phi_hat, (real_t*)d_phi));
 
     // Normalize
     int size = NX*NY;
