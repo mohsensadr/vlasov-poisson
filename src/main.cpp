@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
 
     // PDF selection
     std::string pdf_type = "gaussian";  // default
-    float pdf_params[8] = {0., 0., 0., 0., 0., 0., 0., 0.};
+    float_type pdf_params[8] = {0., 0., 0., 0., 0., 0., 0., 0.};
     
     if (argc > 12) {
         pdf_type = argv[12];
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
     }
     std::cout << "PDF Type: " << pdf_type << "\n";
     std::cout << "PDF Parameters: ";
-    for (float param : pdf_params) {
+    for (float_type param : pdf_params) {
         std::cout << param << " ";
     }
     std::cout << "\n";

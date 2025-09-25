@@ -21,6 +21,11 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 # Set CUDA compute capability (adjust for your GPU)
 set(CMAKE_CUDA_ARCHITECTURES 70)
 
+# Precision type (default = float)
+# build with -DFLOAT_TYPE=float or double
+set(FLOAT_TYPE "float" CACHE STRING "Floating point type (float or double)")
+message(STATUS "Using FLOAT_TYPE=${FLOAT_TYPE}")
+
 # Set the source directory
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
@@ -49,6 +54,8 @@ target_include_directories(main PRIVATE
     ${SRC_DIR}/Depositors
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}  # for cuda_runtime.h
 )
+
+target_compile_definitions(main PRIVATE FLOAT_TYPE=${FLOAT_TYPE})
 
 # Link against cuFFT
 target_link_libraries(main PRIVATE cufft)

@@ -6,12 +6,12 @@
 // kernels --------------------------------------------------------------------
 
 __global__ void compute_cell_indices_kernel(
-    const float* x, const float* y,
+    const float_type* x, const float_type* y,
     int* cell_idx,
     int n_particles,
     int nx, int ny,
-    float xmin, float ymin,
-    float dx, float dy
+    float_type xmin, float_type ymin,
+    float_type dx, float_type dy
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_particles) return;
@@ -34,13 +34,13 @@ __global__ void histogram_kernel(
 }
 
 __global__ void scatter_particles_kernel(
-    const float* x, const float* y,
-    const float* vx, const float* vy, const float* w, const float* wold,
+    const float_type* x, const float_type* y,
+    const float_type* vx, const float_type* vy, const float_type* w, const float_type* wold,
     const int* cell_idx,
     const int* cell_offsets,
     int* cell_counters,
-    float* x_sorted, float* y_sorted,
-    float* vx_sorted, float* vy_sorted, float* w_sorted, float* wold_sorted,
+    float_type* x_sorted, float_type* y_sorted,
+    float_type* vx_sorted, float_type* vy_sorted, float_type* w_sorted, float_type* wold_sorted,
     int n_particles
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -84,12 +84,12 @@ Sorting::Sorting(ParticleContainer& pc_, FieldContainer& fc_)
     cudaMalloc(&d_cell_counters,nc * sizeof(int));
 
     // allocate sorted arrays (same size as particle arrays)
-    cudaMalloc(&d_x_sorted,  np * sizeof(float));
-    cudaMalloc(&d_y_sorted,  np * sizeof(float));
-    cudaMalloc(&d_vx_sorted, np * sizeof(float));
-    cudaMalloc(&d_vy_sorted, np * sizeof(float));
-    cudaMalloc(&d_w_sorted,  np * sizeof(float));
-    cudaMalloc(&d_wold_sorted,  np * sizeof(float));
+    cudaMalloc(&d_x_sorted,  np * sizeof(float_type));
+    cudaMalloc(&d_y_sorted,  np * sizeof(float_type));
+    cudaMalloc(&d_vx_sorted, np * sizeof(float_type));
+    cudaMalloc(&d_vy_sorted, np * sizeof(float_type));
+    cudaMalloc(&d_w_sorted,  np * sizeof(float_type));
+    cudaMalloc(&d_wold_sorted,  np * sizeof(float_type));
 }
 
 Sorting::~Sorting() {
@@ -163,12 +163,12 @@ void Sorting::sort_particles_by_cell(cudaStream_t stream) {
     );
 
     // 7) copy sorted arrays back into ParticleContainer (device-to-device copy)
-    cudaMemcpyAsync(pc->d_x, d_x_sorted,  n_particles * sizeof(float), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(pc->d_y, d_y_sorted,  n_particles * sizeof(float), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(pc->d_vx, d_vx_sorted, n_particles * sizeof(float), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(pc->d_vy, d_vy_sorted, n_particles * sizeof(float), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(pc->d_w, d_w_sorted,  n_particles * sizeof(float), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(pc->d_wold, d_wold_sorted,  n_particles * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(pc->d_x, d_x_sorted,  n_particles * sizeof(float_type), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(pc->d_y, d_y_sorted,  n_particles * sizeof(float_type), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(pc->d_vx, d_vx_sorted, n_particles * sizeof(float_type), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(pc->d_vy, d_vy_sorted, n_particles * sizeof(float_type), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(pc->d_w, d_w_sorted,  n_particles * sizeof(float_type), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(pc->d_wold, d_wold_sorted,  n_particles * sizeof(float_type), cudaMemcpyDeviceToDevice, stream);
 
     // ensure work completed
     cudaStreamSynchronize(stream);

@@ -11,8 +11,8 @@
 void compute_moments(ParticleContainer& pc, FieldContainer& fc, Sorting& sorter) {
     std::unique_ptr<DepositorBase> depositor;
 
-    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
-    cudaMemcpyToSymbol(m, &m_host, sizeof(float));
+    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float_type));
+    cudaMemcpyToSymbol(m, &m_host, sizeof(float_type));
 
     switch (depositionMode) {
         case DepositionMode::BRUTE:   depositor = std::make_unique<BruteDepositor>(); break;

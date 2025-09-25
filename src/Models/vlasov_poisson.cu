@@ -15,9 +15,9 @@
 #include "Sorters/sorting.cuh"
 #include "VRs/MxE.cuh"
 
-void run(const std::string& pdf_type, float* pdf_params) {
-    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float));
-    cudaMemcpyToSymbol(m, &m_host, sizeof(float));
+void run(const std::string& pdf_type, float_type* pdf_params) {
+    cudaMemcpyToSymbol(kb, &kb_host, sizeof(float_type));
+    cudaMemcpyToSymbol(m, &m_host, sizeof(float_type));
 
     // TODO: dx, dy, Lx, Ly are member variables of field container, remove them from here.
     dx = Lx/N_GRID_X;
@@ -71,7 +71,7 @@ void run(const std::string& pdf_type, float* pdf_params) {
     post_proc(fc, 0);
     cudaDeviceSynchronize();
 
-    size_t size = N_PARTICLES * sizeof(float);
+    size_t size = N_PARTICLES * sizeof(float_type);
 
     for (int step = 1; step < NSteps+1; ++step) {
         // compute Electric field

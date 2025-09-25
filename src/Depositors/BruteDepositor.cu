@@ -22,44 +22,28 @@ void BruteDepositor::deposit(ParticleContainer& pc, FieldContainer& fc, Sorting&
     cudaDeviceSynchronize();
 }
 
-__global__ void deposit_density_2d(float *x, float *y, float *N, int n_particles,
+__global__ void deposit_density_2d(float_type *x, float_type *y, float_type *N, int n_particles,
             int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
+            float_type Lx, float_type Ly
     ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
         int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
         int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
         int idx = ix + iy * N_GRID_X;
-        atomicAdd(&N[idx], 1.0f);
+        atomicAdd(&N[idx], 1.0);
     }
 }
-
-/*
-__global__ void deposit_velocity_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, int n_particles,
-            int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
-    ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n_particles) {
-        int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
-        int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
-        int idx = ix + iy * N_GRID_X;
-        atomicAdd(&Ux[idx], vx[i]/N[idx]);
-        atomicAdd(&Uy[idx], vy[i]/N[idx]);
-    }
-}
-*/
 
 // Pass 1: accumulate raw sums of velocity
 __global__ void deposit_velocity_accumulate(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *N,
-    float *Ux, float *Uy,
+    const float_type *x, const float_type *y,
+    const float_type *vx, const float_type *vy,
+    const float_type *N,
+    float_type *Ux, float_type *Uy,
     int n_particles,
     int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
+    float_type Lx, float_type Ly
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
@@ -74,26 +58,26 @@ __global__ void deposit_velocity_accumulate(
 
 // Pass 2: finalize by dividing by N[idx]
 __global__ void deposit_velocity_finalize(
-    float *Ux, float *Uy,
-    const float *N,
+    float_type *Ux, float_type *Uy,
+    const float_type *N,
     int num_cells
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_cells) {
-        if (N[idx] > 0.0f) {
+        if (N[idx] > 0.0) {
             Ux[idx] /= N[idx];
             Uy[idx] /= N[idx];
         } else {
-            Ux[idx] = 0.0f;
-            Uy[idx] = 0.0f;
+            Ux[idx] = 0.0;
+            Uy[idx] = 0.0;
         }
     }
 }
 
 // Host-side wrapper that does both steps
-inline void deposit_velocity_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, int n_particles,
+inline void deposit_velocity_2d(float_type *x, float_type *y, float_type *N, float_type *vx, float_type *vy, float_type *Ux, float_type *Uy, int n_particles,
             int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
+            float_type Lx, float_type Ly
     ) {
     int num_cells = N_GRID_X*N_GRID_Y;
 
@@ -109,32 +93,15 @@ inline void deposit_velocity_2d(float *x, float *y, float *N, float *vx, float *
     );
 }
 
-/*
-__global__ void deposit_temperature_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, float *T, int n_particles,
-            int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
-    ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n_particles) {
-        int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
-        int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
-        int idx = ix + iy * N_GRID_X;
-        float energy = (vx[i]-Ux[idx])*(vx[i]-Ux[idx]);
-        energy += (vy[i]-Uy[idx])*(vy[i]-Uy[idx]);
-        atomicAdd(&T[idx], energy/N[idx]/(2.0f*kb/m));
-    }
-}
-*/
-
 // Pass 1: accumulate raw kinetic energy (per cell)
 __global__ void deposit_temperature_accumulate(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *Ux, const float *Uy,
-    float *T,          // stores accumulated energy (temporary)
+    const float_type *x, const float_type *y,
+    const float_type *vx, const float_type *vy,
+    const float_type *Ux, const float_type *Uy,
+    float_type *T,          // stores accumulated energy (temporary)
     int n_particles,
     int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
+    float_type Lx, float_type Ly
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
@@ -143,9 +110,9 @@ __global__ void deposit_temperature_accumulate(
         int idx = ix + iy * N_GRID_X;
 
         // (vx - Ux)^2 + (vy - Uy)^2
-        float dvx = vx[i] - Ux[idx];
-        float dvy = vy[i] - Uy[idx];
-        float energy = dvx * dvx + dvy * dvy;
+        float_type dvx = vx[i] - Ux[idx];
+        float_type dvy = vy[i] - Uy[idx];
+        float_type energy = dvx * dvx + dvy * dvy;
 
         atomicAdd(&T[idx], energy);
     }
@@ -153,26 +120,26 @@ __global__ void deposit_temperature_accumulate(
 
 // Pass 2: normalize energy into temperature
 __global__ void deposit_temperature_finalize(
-    float *T,
-    const float *N,
+    float_type *T,
+    const float_type *N,
     int num_cells
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_cells) {
-        if (N[idx] > 0.0f) {
+        if (N[idx] > 0.0) {
             // divide by particle count and constants
-            T[idx] = T[idx] / N[idx] / 2.0f;
+            T[idx] = T[idx] / N[idx] / 2.0;
             // ignore division by (kb / m), as it's set to 1 here.
         } else {
-            T[idx] = 0.0f;
+            T[idx] = 0.0;
         }
     }
 }
 
 // Host wrapper
-inline void deposit_temperature_2d(float *x, float *y, float *N, float *vx, float *vy, float *Ux, float *Uy, float *T, int n_particles,
+inline void deposit_temperature_2d(float_type *x, float_type *y, float_type *N, float_type *vx, float_type *vy, float_type *Ux, float_type *Uy, float_type *T, int n_particles,
             int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
+            float_type Lx, float_type Ly
   ) {
     int num_cells = N_GRID_X*N_GRID_Y;
 
@@ -189,30 +156,14 @@ inline void deposit_temperature_2d(float *x, float *y, float *N, float *vx, floa
     );
 }
 
-/*
-__global__ void deposit_density_2d_VR(float *x, float *y, float *w, float *N, float *NVR, int n_particles,
-            int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
-    ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n_particles) {
-        float Navg = (1.0f*n_particles) / (1.0f*N_GRID_X*N_GRID_Y);
-        int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
-        int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
-        int idx = ix + iy * N_GRID_X;
-        atomicAdd(&NVR[idx], Navg/N[idx] + 1.0f - w[i] );
-    }
-}
-*/
-
 // Pass 1: accumulate raw VR contributions
 __global__ void deposit_density_VR_accumulate(
-    const float *x, const float *y,
-    const float *w,
-    float *NVR,         // accumulator
+    const float_type *x, const float_type *y,
+    const float_type *w,
+    float_type *NVR,         // accumulator
     int n_particles,
     int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
+    float_type Lx, float_type Ly
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
@@ -220,13 +171,13 @@ __global__ void deposit_density_VR_accumulate(
         int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
         int idx = ix + iy * N_GRID_X;
 
-        atomicAdd(&NVR[idx], (1.0f - w[i]));
+        atomicAdd(&NVR[idx], (1.0 - w[i]));
     }
 }
 
 __global__ void deposit_density_VR_finalize(
-    float *NVR,
-    float Navg,
+    float_type *NVR,
+    float_type Navg,
     int num_cells
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -236,11 +187,11 @@ __global__ void deposit_density_VR_finalize(
 }
 
 // Host wrapper
-inline void deposit_density_2d_VR(float *x, float *y, float *w, float *NVR, int n_particles,
+inline void deposit_density_2d_VR(float_type *x, float_type *y, float_type *w, float_type *NVR, int n_particles,
             int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
+            float_type Lx, float_type Ly
   ) {
-    float Navg = (1.0f * n_particles) / (1.0f * N_GRID_X * N_GRID_Y);
+    float_type Navg = (1.0 * n_particles) / (1.0 * N_GRID_X * N_GRID_Y);
 
     // Step 1: accumulate contributions
     deposit_density_VR_accumulate<<<blocksPerGrid, threadsPerBlock>>>(
@@ -254,32 +205,15 @@ inline void deposit_density_2d_VR(float *x, float *y, float *w, float *NVR, int 
     deposit_density_VR_finalize<<<blocksPerGrid, threadsPerBlock>>>(NVR, Navg, N_GRID_X * N_GRID_Y);
 }
 
-/*
-__global__ void deposit_velocity_2d_VR(float *x, float *y, float *vx, float*vy, float *w,
-            float *UxVR, float *UyVR, float *NVR, int n_particles,
-            int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
-    ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n_particles) {
-        int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
-        int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
-        int idx = ix + iy * N_GRID_X;
-        atomicAdd(&UxVR[idx], vx[i] * ( 1.0f - w[i] ) / NVR[idx] );
-        atomicAdd(&UyVR[idx], vy[i] * ( 1.0f - w[i] ) / NVR[idx] );
-    }
-}
-*/
-
 // Pass 1: accumulate raw weighted momentum
 __global__ void deposit_velocity_VR_accumulate(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *w,
-    float *UxVR, float *UyVR,   // accumulators
+    const float_type *x, const float_type *y,
+    const float_type *vx, const float_type *vy,
+    const float_type *w,
+    float_type *UxVR, float_type *UyVR,   // accumulators
     int n_particles,
     int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
+    float_type Lx, float_type Ly
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
@@ -288,35 +222,35 @@ __global__ void deposit_velocity_VR_accumulate(
         int idx = ix + iy * N_GRID_X;
 
         // Accumulate momentum contributions
-        atomicAdd(&UxVR[idx], vx[i] * (1.0f - w[i]));
-        atomicAdd(&UyVR[idx], vy[i] * (1.0f - w[i]));
+        atomicAdd(&UxVR[idx], vx[i] * (1.0 - w[i]));
+        atomicAdd(&UyVR[idx], vy[i] * (1.0 - w[i]));
     }
 }
 
 // Pass 2: finalize by dividing by NVR
 __global__ void deposit_velocity_VR_finalize(
-    float *UxVR, float *UyVR,
-    const float *NVR,
+    float_type *UxVR, float_type *UyVR,
+    const float_type *NVR,
     int num_cells
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_cells) {
-        float denom = NVR[idx];
-        if (denom > 0.0f) {
+        float_type denom = NVR[idx];
+        if (denom > 0.0) {
             UxVR[idx] /= denom;
             UyVR[idx] /= denom;
         } else {
-            UxVR[idx] = 0.0f;
-            UyVR[idx] = 0.0f;
+            UxVR[idx] = 0.0;
+            UyVR[idx] = 0.0;
         }
     }
 }
 
 // Host wrapper
-inline void deposit_velocity_2d_VR(float *x, float *y, float *vx, float*vy, float *w,
-            float *UxVR, float *UyVR, float *NVR, int n_particles,
+inline void deposit_velocity_2d_VR(float_type *x, float_type *y, float_type *vx, float_type *vy, float_type *w,
+            float_type *UxVR, float_type *UyVR, float_type *NVR, int n_particles,
             int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly) {
+            float_type Lx, float_type Ly) {
     // Step 1: accumulate momentum contributions
     deposit_velocity_VR_accumulate<<<blocksPerGrid, threadsPerBlock>>>(
         x, y, vx, vy, w,
@@ -330,35 +264,16 @@ inline void deposit_velocity_2d_VR(float *x, float *y, float *vx, float*vy, floa
     );
 }
 
-/*
-__global__ void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *vy, float *w, float *N, float *NVR, float *UxVR, float *UyVR, float *TVR, int n_particles,
-            int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
-    ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n_particles) {
-        float Navg = (1.0f*n_particles) / (1.0f*N_GRID_X*N_GRID_Y);
-        int ix = int(x[i] / Lx * N_GRID_X) % N_GRID_X;
-        int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
-        int idx = ix + iy * N_GRID_X;
-        float energy = (vx[i]-UxVR[idx])*(vx[i]-UxVR[idx]);
-        energy += (vy[i]-UyVR[idx])*(vy[i]-UyVR[idx]);
-        float ans = Navg/(kb/m)/NVR[idx]/N[idx] + ( energy*(1.0f-w[i])/2.0f ) / (kb/m) / NVR[idx];
-        atomicAdd(&TVR[idx], ans);
-    }
-}
-*/
-
 // Pass 1: accumulate raw energy contributions
 __global__ void deposit_temperature_VR_accumulate(
-    const float *x, const float *y,
-    const float *vx, const float *vy,
-    const float *w,
-    const float *UxVR, const float *UyVR,
-    float *TVR,
+    const float_type *x, const float_type *y,
+    const float_type *vx, const float_type *vy,
+    const float_type *w,
+    const float_type *UxVR, const float_type *UyVR,
+    float_type *TVR,
     int n_particles,
     int N_GRID_X, int N_GRID_Y,
-    float Lx, float Ly
+    float_type Lx, float_type Ly
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n_particles) {
@@ -366,9 +281,9 @@ __global__ void deposit_temperature_VR_accumulate(
         int iy = int(y[i] / Ly * N_GRID_Y) % N_GRID_Y;
         int idx = ix + iy * N_GRID_X;
 
-        float dvx = vx[i] - UxVR[idx];
-        float dvy = vy[i] - UyVR[idx];
-        float energy = 0.5f * (dvx*dvx + dvy*dvy) * (1.0f - w[i]); // accumulate energy weighted by (1-w)
+        float_type dvx = vx[i] - UxVR[idx];
+        float_type dvy = vy[i] - UyVR[idx];
+        float_type energy = 0.5 * (dvx*dvx + dvy*dvy) * (1.0 - w[i]); // accumulate energy weighted by (1-w)
 
         atomicAdd(&TVR[idx], energy);
     }
@@ -376,31 +291,31 @@ __global__ void deposit_temperature_VR_accumulate(
 
 // Pass 2: finalize per-cell temperature
 __global__ void deposit_temperature_VR_finalize(
-    float *TVR,
-    const float *NVR,
-    const float *N,
-    float Navg,
+    float_type *TVR,
+    const float_type *NVR,
+    const float_type *N,
+    float_type Navg,
     int num_cells
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_cells) {
-        float denom = NVR[idx];
-        if (N[idx] > 1.0f) {
-            TVR[idx] = (1.0f * Navg + TVR[idx])/ denom;
+        float_type denom = NVR[idx];
+        if (N[idx] > 1.0) {
+            TVR[idx] = (1.0 * Navg + TVR[idx])/ denom;
             // n0=Navg, T0 = 1
             // also, kb/m = 1
         } else {
-            TVR[idx] = 1.0f;
+            TVR[idx] = 1.0;
         }
     }
 }
 
 // Host wrapper
-inline void deposit_temperature_2d_VR(float *x, float *y, float *vx, float *vy, float *w, float *N, float *NVR, float *UxVR, float *UyVR, float *TVR, int n_particles,
+inline void deposit_temperature_2d_VR(float_type *x, float_type *y, float_type *vx, float_type *vy, float_type *w, float_type *N, float_type *NVR, float_type *UxVR, float_type *UyVR, float_type *TVR, int n_particles,
             int N_GRID_X, int N_GRID_Y,
-            float Lx, float Ly
+            float_type Lx, float_type Ly
   ) {
-    float Navg = (1.0f * n_particles) / (1.0f * N_GRID_X * N_GRID_Y);
+    float_type Navg = (1.0 * n_particles) / (1.0 * N_GRID_X * N_GRID_Y);
 
     // Step 1: accumulate energy
     deposit_temperature_VR_accumulate<<<blocksPerGrid, threadsPerBlock>>>(

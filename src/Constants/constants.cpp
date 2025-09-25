@@ -15,19 +15,19 @@ int grid_size = N_GRID_X * N_GRID_Y; ///< Total number of grid points
 
 // Particle and time integration parameters
 int N_PARTICLES = 100000;  ///< Total number of simulation particles
-float DT = 0.01f;          ///< Time step size
+float_type DT = 0.01;          ///< Time step size
 int NSteps = 100;          ///< Number of simulation steps
 int Nm = 3;                ///< Number of moments
 
 // Domain dimensions and spacing
-float Lx = 1.0f;                       ///< Domain length in X
-float Ly = 1.0f;                       ///< Domain length in Y
-float dx = 0.01f;                      ///< Grid spacing in X
-float dy = 0.01f;                      ///< Grid spacing in Y
+float_type Lx = 1.0;                       ///< Domain length in X
+float_type Ly = 1.0;                       ///< Domain length in Y
+float_type dx = 0.01;                      ///< Grid spacing in X
+float_type dy = 0.01;                      ///< Grid spacing in Y
 std::string problem = "LandauDamping"; ///< string specifying the problem
 
 // Physical constants
-float Q_OVER_M = 0.001f;     ///< Charge-to-mass ratio (q/m)
+float_type Q_OVER_M = 0.001;     ///< Charge-to-mass ratio (q/m)
 
 // CUDA kernel launch configuration
 int threadsPerBlock = 256; ///< CUDA threads per block
