@@ -22,6 +22,69 @@ __device__ void Gauss_Jordan(float_type H[Nm][Nm], float_type g[Nm], float_type 
     for (int i = 0; i < Nm; i++) x[i] = g[i];
 }
 
+// --- Device Gauss-Jordan with partial pivoting ---
+// Returns true on success, false if matrix is singular or non-finite values appear.
+// Overwrites H and g; x out receives the solution if returned true.
+template<int Nm>
+__device__ bool Gauss_Jordan_pivot(float_type H[Nm][Nm], float_type g[Nm], float_type x[Nm]) {
+    const float_type TINY = (float_type)1e-12; // tune as needed
+
+    for (int i = 0; i < Nm; ++i) {
+        // find pivot (largest magnitude in column i among rows i..Nm-1)
+        int pivot = i;
+        float_type maxabs = fabsf(H[i][i]);
+        for (int r = i+1; r < Nm; ++r) {
+            float_type av = fabsf(H[r][i]);
+            if (av > maxabs) { maxabs = av; pivot = r; }
+        }
+
+        if (maxabs < TINY || !isfinite(maxabs)) {
+            // near singular pivot
+            return false;
+        }
+
+        // swap rows if necessary
+        if (pivot != i) {
+            for (int c = 0; c < Nm; ++c) {
+                float_type tmp = H[i][c];
+                H[i][c] = H[pivot][c];
+                H[pivot][c] = tmp;
+            }
+            float_type tmpg = g[i];
+            g[i] = g[pivot];
+            g[pivot] = tmpg;
+        }
+
+        // normalize pivot row (use reciprocal)
+        float_type diag = H[i][i];
+        if (!isfinite(diag) || fabsf(diag) < TINY) return false;
+        float_type invd = (float_type)1.0 / diag;
+        for (int c = i; c < Nm; ++c) H[i][c] *= invd;
+        g[i] *= invd;
+
+        // eliminate column i from other rows
+        for (int r = 0; r < Nm; ++r) {
+            if (r == i) continue;
+            float_type factor = H[r][i];
+            // subtract factor * pivot-row (only columns c >= i are used)
+            for (int c = i; c < Nm; ++c) H[r][c] -= factor * H[i][c];
+            g[r] -= factor * g[i];
+        }
+
+        // optional: quick finite check
+        for (int rr = 0; rr < Nm; ++rr) {
+            for (int cc = 0; cc < Nm; ++cc) {
+                if (!isfinite(H[rr][cc])) return false;
+            }
+            if (!isfinite(g[rr])) return false;
+        }
+    }
+
+    // at this point g contains the solution
+    for (int i = 0; i < Nm; ++i) x[i] = g[i];
+    return true;
+}
+
 template<int Nm>
 __device__ float_type mom(float_type u1, float_type u2, float_type U_1, float_type U_2, int n) {
     switch(n) {
@@ -62,7 +125,8 @@ __global__ void update_weights(
     float_type p[Nm] = {0.0};
     float_type pt[Nm] = {0.0};
     float_type p0[Nm] = {0.0};
-    p0[2] = 2.0;
+    float_type pw[Nm] = {0.0};
+    p0[2] = 2.0*Navg;
 
     float_type sumwold = 0.0;
 
@@ -71,32 +135,38 @@ __global__ void update_weights(
         for (int j = 0; j < Nm; j++) {
             p[j] += mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
             pt[j] += (1.0 - wold[i]) * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
+            pw[j] += w[i] * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
         }
     }
 
-    for (int i = 0; i < Nm; i++) {
-        p[i] /= Npc;
-        pt[i] /= NVR[cell];
-        //printf("p[%d]=%f | ", i, p[i]);
-        //printf("inter1 pt[%d]=%f | ", i, pt[i]);
-    }
+    //printf("\n <R>: ");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, p[i]);
+    //}
+
+    //printf("\n <(1-w)R>:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, pt[i]);
+    //}
 
     for (int i = 0; i < Nm; i++) {
         pt[i] += p0[i];
-        //printf("inter2 pt[%d]=%f |", i, pt[i]);
     }
 
-    // correct moments using Ex and Ey
-    pt[0] -= dt * ExVR[cell];
-    pt[1] -= dt * EyVR[cell];
-    pt[2] -= dt * (UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]);
-
+    //printf("\n <R>0 + <(1-w)R>:");
     //for (int i = 0; i < Nm; i++) {
-    //    printf("inter3 pt[%d]=%f | ", i, pt[i]);
+    //    printf(" [%d]=%f |", i, pt[i]);
     //}
-    //printf("\n\n dt * ExVR[%d]=%f | ", cell, dt * ExVR[cell]);
-    //printf("dt * EyVR[%d]=%f | ", cell, dt * EyVR[cell]);
-    //printf("\ndt * (UxVR[%d]*ExVR[.] + UyVR[.]*EyVR[.]) = %f", cell, dt * (UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]));
+
+    // correct moments using Ex and Ey
+    pt[0] -= dt * NVR[cell]*ExVR[cell];
+    pt[1] -= dt * NVR[cell]*EyVR[cell];
+    pt[2] -= dt * NVR[cell]*(UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]);
+
+    //printf("\n <R>_{t+dt}:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, pt[i]);
+    //}
 
     // now compute target <w*R(v)> moments: 
     // <R(v)>VR = <R(v)>0 + <(1-w)*R(v)> 
@@ -105,8 +175,27 @@ __global__ void update_weights(
     // here we reuse variable p to denote <w*R(v)> from this point on
     for (int i = 0; i < Nm; i++) {
         p[i] = p0[i] + p[i] - pt[i];
-        //printf("\n\n final target moment p[%d]=%f |", i, p[i]);
     }
+
+    //printf("\n <WR>_{old}:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, pw[i]);
+    //}
+
+    //printf("\n <WR>_{t+dt}:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, p[i]);
+    //}
+
+
+    for (int i = 0; i < Nm; i++) {
+        p[i] = p[i]/Npc;
+    }
+
+    //printf("\n <WR>_{t+dt}/Npc:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, p[i]);
+    //}
 
     for (int i = start; i < end; i++)
         wold[i] = w[i];
@@ -116,18 +205,19 @@ __global__ void update_weights(
     int iter = 0;
     float_type g[Nm], H[Nm][Nm], xvec[Nm], lam[Nm] = {0.0};
 
+    float_type res;
     while (!convergence) {
         iter++;
         if (iter > max_iter) break;
 
         // Compute gradient
-        float_type res = 0.0;
+        res = 0.0;
         for (int j = 0; j < Nm; j++) {
             g[j] = 0.0;
             for (int i = start; i < end; i++)
-                g[j] += w[i] * mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+                g[j] += w[i] * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
             g[j] = g[j]/Npc - p[j];
-            res += fabsf(g[j]);
+            res += fabs(g[j]);
         }
         if (res < tol){
           convergence = true;
@@ -143,8 +233,8 @@ __global__ void update_weights(
             for (int j = k; j < Nm; j++) {
                 float_type Ski = 0.0, Sji = 0.0, SkiSji = 0.0;
                 for (int i = start; i < end; i++) {
-                    float_type mk = mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], k);
-                    float_type mj = mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j);
+                    float_type mk = mom<Nm>(vx[i], vy[i], 0.0, 0.0, k);
+                    float_type mj = mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
                     Ski += mk * w[i];
                     Sji += mj * w[i];
                     SkiSji += mk * mj * w[i];
@@ -158,7 +248,16 @@ __global__ void update_weights(
                 H[k][j] = H[j][k];
 
         // Solve for Newton step
-        Gauss_Jordan<Nm>(H, g, xvec);
+        //Gauss_Jordan<Nm>(H, g, xvec);
+        bool ok = Gauss_Jordan_pivot<Nm>(H, g, xvec);
+        if (!ok) {
+            printf("Solver failed! Don't update weights\n");
+            // fallback: do not overwrite weights if solver failed
+            for (int i = start; i < end; ++i) w[i] = wold[i];
+            // optionally break out of outer loop or mark no convergence
+            convergence = false;
+            break; // or set iter=max_iter to exit
+        }
 
         // Update weights
         float_type sumW = 0.0;
@@ -168,8 +267,8 @@ __global__ void update_weights(
         for (int i = start; i < end; i++) {
             float_type dummy = 0.0;
             for (int j = 0; j < Nm; j++)
-                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], UxVR[cell], UyVR[cell], j)-p[j]);
-            float_type dummy2 = expf(-dummy);
+                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], 0.0, 0.0, j)-p[j]);
+            float_type dummy2 = exp(-dummy);
             w[i] = wold[i] / dummy2;
             sumW += w[i];
         }
@@ -182,8 +281,10 @@ __global__ void update_weights(
         w[i] = wold[i];
       }
     }
-    if(iter > 999)
+    if(iter > 999){
+      printf("iter: %d res: %e\n", iter, res);
       printf("MxE iter %d in cell %d\n", iter, cell);
+    }
 }
 
 void update_weights_dispatch(
