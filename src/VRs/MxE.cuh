@@ -7,12 +7,12 @@ struct Tolerance;
 
 template <>
 struct Tolerance<float> {
-    static __device__ __host__ inline float_type value() { return 1e-4f; }
+    static __device__ __host__ inline float_type value() { return 1e-3f; }
 };
 
 template <>
 struct Tolerance<double> {
-    static __device__ __host__ inline double value() { return 1e-8; }
+    static __device__ __host__ inline double value() { return 1e-9; }
 };
 
 template<int Nm>
