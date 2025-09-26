@@ -125,6 +125,7 @@ __global__ void update_weights(
     float_type p[Nm] = {0.0};
     float_type pt[Nm] = {0.0};
     float_type p0[Nm] = {0.0};
+    float_type pw[Nm] = {0.0};
     p0[2] = 2.0*Navg;
 
     float_type sumwold = 0.0;
@@ -134,37 +135,38 @@ __global__ void update_weights(
         for (int j = 0; j < Nm; j++) {
             p[j] += mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
             pt[j] += (1.0 - wold[i]) * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
+            pw[j] += w[i] * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
         }
     }
 
-    printf("\n <R>: ");
-    for (int i = 0; i < Nm; i++) {
-        printf("[%d]=%f | ", i, p[i]);
-    }
+    //printf("\n <R>: ");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, p[i]);
+    //}
 
-    printf("\n <(1-w)R>:");
-    for (int i = 0; i < Nm; i++) {
-        printf("[%d]=%f | ", i, pt[i]);
-    }
+    //printf("\n <(1-w)R>:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, pt[i]);
+    //}
 
     for (int i = 0; i < Nm; i++) {
         pt[i] += p0[i];
     }
 
-    printf("\n <R>0 + <(1-w)R>:");
-    for (int i = 0; i < Nm; i++) {
-        printf(" [%d]=%f |", i, pt[i]);
-    }
+    //printf("\n <R>0 + <(1-w)R>:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf(" [%d]=%f |", i, pt[i]);
+    //}
 
     // correct moments using Ex and Ey
     pt[0] -= dt * NVR[cell]*ExVR[cell];
     pt[1] -= dt * NVR[cell]*EyVR[cell];
     pt[2] -= dt * NVR[cell]*(UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]);
 
-    printf("\n <R>_{t+dt}:");
-    for (int i = 0; i < Nm; i++) {
-        printf("[%d]=%f | ", i, pt[i]);
-    }
+    //printf("\n <R>_{t+dt}:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, pt[i]);
+    //}
 
     // now compute target <w*R(v)> moments: 
     // <R(v)>VR = <R(v)>0 + <(1-w)*R(v)> 
@@ -175,19 +177,25 @@ __global__ void update_weights(
         p[i] = p0[i] + p[i] - pt[i];
     }
 
-    printf("\n <WR>_{t+dt}:");
-    for (int i = 0; i < Nm; i++) {
-        printf("[%d]=%f | ", i, p[i]);
-    }
+    //printf("\n <WR>_{old}:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, pw[i]);
+    //}
+
+    //printf("\n <WR>_{t+dt}:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, p[i]);
+    //}
+
 
     for (int i = 0; i < Nm; i++) {
         p[i] = p[i]/Npc;
     }
 
-    printf("\n <WR>_{t+dt}/Npc:");
-    for (int i = 0; i < Nm; i++) {
-        printf("[%d]=%f | ", i, p[i]);
-    }
+    //printf("\n <WR>_{t+dt}/Npc:");
+    //for (int i = 0; i < Nm; i++) {
+    //    printf("[%d]=%f | ", i, p[i]);
+    //}
 
     for (int i = start; i < end; i++)
         wold[i] = w[i];
@@ -197,13 +205,13 @@ __global__ void update_weights(
     int iter = 0;
     float_type g[Nm], H[Nm][Nm], xvec[Nm], lam[Nm] = {0.0};
 
-    printf("\n\n");
+    float_type res;
     while (!convergence) {
         iter++;
         if (iter > max_iter) break;
 
         // Compute gradient
-        float_type res = 0.0;
+        res = 0.0;
         for (int j = 0; j < Nm; j++) {
             g[j] = 0.0;
             for (int i = start; i < end; i++)
@@ -211,7 +219,6 @@ __global__ void update_weights(
             g[j] = g[j]/Npc - p[j];
             res += fabs(g[j]);
         }
-        printf("iter: %d res: %e\n", iter, res);
         if (res < tol){
           convergence = true;
           break;
@@ -274,8 +281,10 @@ __global__ void update_weights(
         w[i] = wold[i];
       }
     }
-    if(iter > 999)
+    if(iter > 999){
+      printf("iter: %d res: %e\n", iter, res);
       printf("MxE iter %d in cell %d\n", iter, cell);
+    }
 }
 
 void update_weights_dispatch(
