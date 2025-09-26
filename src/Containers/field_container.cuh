@@ -13,6 +13,7 @@ public:
     float_type *d_Ux = nullptr;
     float_type *d_Uy = nullptr;
     float_type *d_T = nullptr;
+    float_type *d_phi = nullptr;
     float_type *d_Ex = nullptr;
     float_type *d_Ey = nullptr;
 
@@ -20,6 +21,7 @@ public:
     float_type *d_UxVR = nullptr;
     float_type *d_UyVR = nullptr;
     float_type *d_TVR = nullptr;
+    float_type *d_phiVR = nullptr;
     float_type *d_ExVR = nullptr;
     float_type *d_EyVR = nullptr;
 
@@ -40,6 +42,7 @@ public:
         cudaMalloc(&d_Ux, bytes);
         cudaMalloc(&d_Uy, bytes);
         cudaMalloc(&d_T, bytes);
+        cudaMalloc(&d_phi, bytes);
         cudaMalloc(&d_Ex, bytes);
         cudaMalloc(&d_Ey, bytes);
 
@@ -47,6 +50,7 @@ public:
         cudaMalloc(&d_UxVR, bytes);
         cudaMalloc(&d_UyVR, bytes);
         cudaMalloc(&d_TVR, bytes);
+        cudaMalloc(&d_phiVR, bytes);
         cudaMalloc(&d_ExVR, bytes);
         cudaMalloc(&d_EyVR, bytes);
     }
@@ -56,6 +60,7 @@ public:
         cudaFree(d_Ux);
         cudaFree(d_Uy);
         cudaFree(d_T);
+        cudaFree(d_phi);
         cudaFree(d_Ex);
         cudaFree(d_Ey);
 
@@ -63,6 +68,7 @@ public:
         cudaFree(d_UxVR);
         cudaFree(d_UyVR);
         cudaFree(d_TVR);
+        cudaFree(d_phiVR);
         cudaFree(d_ExVR);
         cudaFree(d_EyVR);
     }

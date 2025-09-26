@@ -255,10 +255,9 @@ void solve_poisson_periodic(FieldContainer& fc) {
     );
 
     int size = N_GRID_X * N_GRID_Y;
-    real_t *d_rhs, *d_phi, *d_residual;
+    real_t *d_rhs, *d_residual;
 
     CUDA_CHECK(cudaMalloc(&d_rhs, size*sizeof(real_t)));
-    CUDA_CHECK(cudaMalloc(&d_phi, size*sizeof(real_t)));
     CUDA_CHECK(cudaMalloc(&d_residual, size*sizeof(real_t)));
 
     // --------------------------
@@ -270,15 +269,15 @@ void solve_poisson_periodic(FieldContainer& fc) {
 
     real_t res_normalizer = compute_l2_norm(d_rhs, size);
 
-    poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, d_phi);
+    poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, fc.d_phi);
 
-    compute_residual_kernel<<<gridDim, blockDim>>>(d_phi, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
+    compute_residual_kernel<<<gridDim, blockDim>>>(fc.d_phi, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
     real_t res_norm = compute_l2_norm(d_residual, size) / res_normalizer;
 
-    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(d_phi, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
+    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(fc.d_phi, fc.d_Ex, fc.d_Ey, N_GRID_X, N_GRID_Y, dx, dy);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -291,20 +290,19 @@ void solve_poisson_periodic(FieldContainer& fc) {
 
     res_normalizer = compute_l2_norm(d_rhs, size);
 
-    poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, d_phi);
+    poisson_fft_solver(N_GRID_X, N_GRID_Y, fc.dx, fc.dy, d_rhs, fc.d_phiVR);
 
-    compute_residual_kernel<<<gridDim, blockDim>>>(d_phi, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
+    compute_residual_kernel<<<gridDim, blockDim>>>(fc.d_phiVR, d_rhs, d_residual, N_GRID_X, N_GRID_Y, dx, dy);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
     res_norm = compute_l2_norm(d_residual, size) / res_normalizer;
 
-    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(d_phi, fc.d_ExVR, fc.d_EyVR, N_GRID_X, N_GRID_Y, dx, dy);
+    compute_electric_field_kernel_periodic<<<gridDim, blockDim>>>(fc.d_phiVR, fc.d_ExVR, fc.d_EyVR, N_GRID_X, N_GRID_Y, dx, dy);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
     // Cleanup
-    cudaFree(d_phi);
     cudaFree(d_residual);
     cudaFree(d_rhs);
 }
