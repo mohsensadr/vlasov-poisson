@@ -247,6 +247,22 @@ __global__ void compute_rhs_kernel(const real_t* d_N, real_t* d_rhs, int NX, int
     // d_rhs[idx] = sin((real_t)(2*M_PI)*x) * sin((real_t)(2*M_PI)*y);
 }
 
+__global__ void compute_rhs_cos_kernel(real_t* d_rhs, int NX, int NY, real_t dx, real_t dy,
+                                       real_t a, real_t b, real_t c) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (i >= NX || j >= NY) return;
+
+    int idx = j * NX + i;
+
+    real_t x = i * dx;
+    real_t y = j * dy;
+
+    d_rhs[idx] = (1.0f + a * cosf(b * x)) / c * (1.0f + a * cosf(b * y)) / c;
+}
+
+
 void solve_poisson_periodic(FieldContainer& fc) {
     dim3 blockDim(16,16);
     dim3 gridDim(
@@ -264,6 +280,10 @@ void solve_poisson_periodic(FieldContainer& fc) {
     // 1. Monte Carlo estimate
     // --------------------------
     compute_rhs_kernel<<<gridDim, blockDim>>>(fc.d_N, d_rhs, N_GRID_X, N_GRID_Y, dx, dy);
+    
+    //for testing
+    //real_t a=0.5, b=4, c=1.0;
+    //compute_rhs_cos_kernel<<<gridDim, blockDim>>>(d_rhs, N_GRID_X, N_GRID_Y, dx, dy, a, b, c);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 
