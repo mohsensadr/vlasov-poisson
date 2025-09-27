@@ -99,6 +99,8 @@ template<int Nm>
 __global__ void update_weights(
     const float_type* __restrict__ vx,
     const float_type* __restrict__ vy,
+    const float_type* __restrict__ vx_old,
+    const float_type* __restrict__ vy_old,
     const int* __restrict__ d_cell_offsets,
     float_type* __restrict__ w,
     float_type* __restrict__ wold,
@@ -115,6 +117,8 @@ __global__ void update_weights(
     if (cell >= num_cells) return;
 
     float_type Navg = float_type(n_particles) / float_type(num_cells);
+    float_type Ux = UxVR[cell];
+    float_type Uy = UyVR[cell];
     float_type tol = Tolerance<float_type>::value();
     int start = d_cell_offsets[cell];
     int end   = d_cell_offsets[cell + 1];
@@ -126,47 +130,49 @@ __global__ void update_weights(
     float_type pt[Nm] = {0.0};
     float_type p0[Nm] = {0.0};
     float_type pw[Nm] = {0.0};
-    p0[2] = 2.0*Navg;
+    p0[2] = 2.0*Navg; // energy is assumed 1.0 for the control variate here.
 
     float_type sumwold = 0.0;
 
     for (int i = start; i < end; i++) {
         sumwold += wold[i];
         for (int j = 0; j < Nm; j++) {
-            p[j] += mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
-            pt[j] += (1.0 - wold[i]) * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
-            pw[j] += w[i] * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
+            p[j] += mom<Nm>(vx[i], vy[i], Ux, Uy, j);
+            pt[j] += (1.0 - wold[i]) * mom<Nm>(vx_old[i], vy_old[i], Ux, Uy, j);
+            pw[j] += w[i] * mom<Nm>(vx[i], vy[i], Ux, Uy, j);
         }
     }
 
-    //printf("\n <R>: ");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf("[%d]=%f | ", i, p[i]);
-    //}
+    /*
+    printf("\n <R>: ");
+    for (int i = 0; i < Nm; i++) {
+        printf("[%d]=%f | ", i, p[i]);
+    }
 
-    //printf("\n <(1-w)R>:");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf("[%d]=%f | ", i, pt[i]);
-    //}
+    printf("\n <(1-w)R>:");
+    for (int i = 0; i < Nm; i++) {
+        printf("[%d]=%f | ", i, pt[i]);
+    }*/
 
     for (int i = 0; i < Nm; i++) {
         pt[i] += p0[i];
     }
-
-    //printf("\n <R>0 + <(1-w)R>:");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf(" [%d]=%f |", i, pt[i]);
-    //}
+    /*
+    printf("\n <R>0 + <(1-w)R>:");
+    for (int i = 0; i < Nm; i++) {
+        printf(" [%d]=%f |", i, pt[i]);
+    }*/
 
     // correct moments using Ex and Ey
-    pt[0] -= dt * NVR[cell]*ExVR[cell];
-    pt[1] -= dt * NVR[cell]*EyVR[cell];
-    pt[2] -= dt * NVR[cell]*(UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]);
+    pt[0] = dt * NVR[cell]*ExVR[cell];
+    pt[1] = dt * NVR[cell]*EyVR[cell];
+    //pt[2] -= dt * NVR[cell]*(UxVR[cell]*ExVR[cell] + UyVR[cell]*EyVR[cell]);
 
-    //printf("\n <R>_{t+dt}:");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf("[%d]=%f | ", i, pt[i]);
-    //}
+    /*
+    printf("\n <R>_{t+dt}:");
+    for (int i = 0; i < Nm; i++) {
+        printf("[%d]=%f | ", i, pt[i]);
+    }*/
 
     // now compute target <w*R(v)> moments: 
     // <R(v)>VR = <R(v)>0 + <(1-w)*R(v)> 
@@ -177,25 +183,27 @@ __global__ void update_weights(
         p[i] = p0[i] + p[i] - pt[i];
     }
 
-    //printf("\n <WR>_{old}:");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf("[%d]=%f | ", i, pw[i]);
-    //}
+    /*
+    printf("\n <WR>_{old}:");
+    for (int i = 0; i < Nm; i++) {
+        printf("[%d]=%f | ", i, pw[i]);
+    }
 
-    //printf("\n <WR>_{t+dt}:");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf("[%d]=%f | ", i, p[i]);
-    //}
+    printf("\n <WR>_{t+dt}:");
+    for (int i = 0; i < Nm; i++) {
+        printf("[%d]=%f | ", i, p[i]);
+    }*/
 
 
     for (int i = 0; i < Nm; i++) {
         p[i] = p[i]/Npc;
     }
 
-    //printf("\n <WR>_{t+dt}/Npc:");
-    //for (int i = 0; i < Nm; i++) {
-    //    printf("[%d]=%f | ", i, p[i]);
-    //}
+    /*
+    printf("\n <WR>_{t+dt}/Npc:");
+    for (int i = 0; i < Nm; i++) {
+        printf("[%d]=%f | ", i, p[i]);
+    }*/
 
     for (int i = start; i < end; i++)
         wold[i] = w[i];
@@ -215,10 +223,11 @@ __global__ void update_weights(
         for (int j = 0; j < Nm; j++) {
             g[j] = 0.0;
             for (int i = start; i < end; i++)
-                g[j] += w[i] * mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
+                g[j] += w[i] * mom<Nm>(vx[i], vy[i], Ux, Uy, j);
             g[j] = g[j]/Npc - p[j];
             res += fabs(g[j]);
         }
+        
         if (res < tol){
           convergence = true;
           break;
@@ -233,8 +242,8 @@ __global__ void update_weights(
             for (int j = k; j < Nm; j++) {
                 float_type Ski = 0.0, Sji = 0.0, SkiSji = 0.0;
                 for (int i = start; i < end; i++) {
-                    float_type mk = mom<Nm>(vx[i], vy[i], 0.0, 0.0, k);
-                    float_type mj = mom<Nm>(vx[i], vy[i], 0.0, 0.0, j);
+                    float_type mk = mom<Nm>(vx[i], vy[i], Ux, Uy, k);
+                    float_type mj = mom<Nm>(vx[i], vy[i], Ux, Uy, j);
                     Ski += mk * w[i];
                     Sji += mj * w[i];
                     SkiSji += mk * mj * w[i];
@@ -256,6 +265,7 @@ __global__ void update_weights(
             for (int i = start; i < end; ++i) w[i] = wold[i];
             // optionally break out of outer loop or mark no convergence
             convergence = false;
+            printf("res: %e\n", res);
             break; // or set iter=max_iter to exit
         }
 
@@ -267,7 +277,7 @@ __global__ void update_weights(
         for (int i = start; i < end; i++) {
             float_type dummy = 0.0;
             for (int j = 0; j < Nm; j++)
-                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], 0.0, 0.0, j)-p[j]);
+                dummy += lam[j]*(mom<Nm>(vx[i], vy[i], Ux, Uy, j)-p[j]);
             float_type dummy2 = exp(-dummy);
             w[i] = wold[i] / dummy2;
             sumW += w[i];
@@ -290,6 +300,8 @@ __global__ void update_weights(
 void update_weights_dispatch(
     const float_type* vx,
     const float_type* vy,
+    const float_type* vx_old,
+    const float_type* vy_old,
     const int* d_cell_offsets,
     float_type* w,
     float_type* wold,
@@ -304,7 +316,7 @@ void update_weights_dispatch(
 
     switch (Nm) {
         case 3:
-            update_weights<3><<<blocksPerGrid, threadsPerBlock>>>(vx, vy, d_cell_offsets, w, wold, NVR, UxVR, UyVR, ExVR, EyVR, num_cells, N_PARTICLES, DT);
+            update_weights<3><<<blocksPerGrid, threadsPerBlock>>>(vx, vy, vx_old, vy_old, d_cell_offsets, w, wold, NVR, UxVR, UyVR, ExVR, EyVR, num_cells, N_PARTICLES, DT);
             break;
         // Add more cases as needed
         default:

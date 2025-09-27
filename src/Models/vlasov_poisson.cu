@@ -74,6 +74,9 @@ void run(const std::string& pdf_type, float_type* pdf_params) {
     size_t size = N_PARTICLES * sizeof(float_type);
 
     for (int step = 1; step < NSteps+1; ++step) {
+        // save old velocity
+        pc.save_old_velocity();
+
         // compute Electric field
         solve_poisson_periodic(fc);
         cudaDeviceSynchronize();
@@ -100,7 +103,7 @@ void run(const std::string& pdf_type, float_type* pdf_params) {
 
         // MxE to conserve equil. moments.
         if (vrMode == VRMode::MXE) {
-          update_weights_dispatch(pc.d_vx, pc.d_vy, sorter.d_cell_offsets, pc.d_w, pc.d_wold, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_ExVR, fc.d_EyVR, grid_size, Nm);
+          update_weights_dispatch(pc.d_vx, pc.d_vy, pc.d_vx_old, pc.d_vy_old, sorter.d_cell_offsets, pc.d_w, pc.d_wold, fc.d_NVR, fc.d_UxVR, fc.d_UyVR, fc.d_ExVR, fc.d_EyVR, grid_size, Nm);
           cudaDeviceSynchronize();
         }
         

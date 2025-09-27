@@ -22,6 +22,8 @@ template<int Nm>
 __global__ void update_weights(
     const float_type* __restrict__ vx,
     const float_type* __restrict__ vy,
+    const float_type* __restrict__ vx_old,
+    const float_type* __restrict__ vy_old,
     const int* __restrict__ d_cell_offsets,
     float_type* __restrict__ w,
     float_type* __restrict__ wold,
@@ -38,6 +40,8 @@ __global__ void update_weights(
 void update_weights_dispatch(
     const float_type* vx,
     const float_type* vy,
+    const float_type* vx_old,
+    const float_type* vy_old,
     const int* d_cell_offsets,
     float_type* w,
     float_type* wold,

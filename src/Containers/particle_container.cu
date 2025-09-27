@@ -8,6 +8,8 @@ ParticleContainer::ParticleContainer(int n_particles_) : n_particles(n_particles
     cudaMalloc(&d_y, bytes);
     cudaMalloc(&d_vx, bytes);
     cudaMalloc(&d_vy, bytes);
+    cudaMalloc(&d_vx_old, bytes);
+    cudaMalloc(&d_vy_old, bytes);
     cudaMalloc(&d_w, bytes);
     cudaMalloc(&d_wold, bytes);
 }
@@ -17,6 +19,8 @@ ParticleContainer::~ParticleContainer() {
     cudaFree(d_y);
     cudaFree(d_vx);
     cudaFree(d_vy);
+    cudaFree(d_vx_old);
+    cudaFree(d_vy_old);
     cudaFree(d_w);
     cudaFree(d_wold);
 }
@@ -37,6 +41,12 @@ void ParticleContainer::update_velocity(float_type *Ex, float_type *Ey,
     cudaDeviceSynchronize();
 }
 
+void ParticleContainer::save_old_velocity(){
+  save_old_velocity_2d<<<blocksPerGrid, threadsPerBlock>>>(
+        d_vx, d_vy, d_vx_old, d_vy_old, n_particles
+    );
+    cudaDeviceSynchronize();
+}
 void ParticleContainer::update_position(float_type Lx, float_type Ly, float_type DT) {
     update_position_2d<<<blocksPerGrid, threadsPerBlock>>>(
         d_x, d_y, d_vx, d_vy, n_particles, Lx, Ly, DT
@@ -52,6 +62,15 @@ void ParticleContainer::map_weights(float_type *NVR, float_type *UxVR, float_typ
         N_GRID_X, N_GRID_Y, Lx, Ly, global_to_local
     );
     cudaDeviceSynchronize();
+}
+
+__global__ void save_old_velocity_2d(float_type *vx, float_type *vy,
+                                  float_type *vx_old, float_type *vy_old, int n_particles) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n_particles) return;
+
+    vx_old[i] = vx[i];
+    vy_old[i] = vy[i];
 }
 
 __global__ void update_velocity_2d(float_type *x, float_type *y, float_type *vx, float_type *vy,
