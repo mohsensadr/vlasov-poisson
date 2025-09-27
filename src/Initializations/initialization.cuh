@@ -90,7 +90,7 @@ __global__ void initialize_weights(float_type *x, float_type *y, float_type *N, 
 
     float_type Nemp = N[idx];
     float_type Navg = float_type(Ntotal) / (N_GRID_X * N_GRID_Y);
-    float_type Ntarget = pdf(x[i], y[i]) * dx * dy * Ntotal;
+    float_type Ntarget = pdf(x[i], y[i]) * dx * dy * Lx * Ly * Ntotal;
 
     w[i] = (Navg + Nemp - Ntarget) / Nemp;
 }
